@@ -7,6 +7,8 @@ from src.model.transformer import TransformerModel
 
 from init_path import src_path, data_path, src_xml_path, model_xml_path, task_corpus_path
 
+batch_size = 10
+
 
 # 加载模型并预测
 def infer(model_path, sentences):
@@ -62,20 +64,13 @@ def infer(model_path, sentences):
 
 
 if __name__ == '__main__':
-
-    # list of (sentences, lang)
-    sentences = [
-        'once he had worn trendy italian leather shoes and jeans from paris that had cost three hundred euros .',  # en
-        'Le français est la seule langue étrangère proposée dans le système éducatif .',  # fr
-        'El cadmio produce efectos tóxicos en los organismos vivos , aun en concentraciones muy pequeñas .',  # es
-        'Nach dem Zweiten Weltkrieg verbreitete sich Bonsai als Hobby in der ganzen Welt .',  # de
-        'وقد فاز في الانتخابات في الجولة الثانية من التصويت من قبل سيدي ولد الشيخ عبد الله ، مع أحمد ولد داداه في المرتبة الثانية .',
-        # ar
-        '羅伯特 · 皮爾 斯 生於 1863年 , 在 英國 曼徹斯特 學習 而 成為 一 位 工程師 . 1933年 , 皮爾斯 在 直布羅陀去世 .',  # zh
-    ]
+    corpus_bpe_path = os.path.join(data_path, 'SemEval2021_Task2_corpus_bpe.txt')
+    with open(corpus_bpe_path, 'r', encoding='utf-8') as f:
+        sentences = f.readlines()
 
     model_path = os.path.join(model_xml_path, u'mlm_17_1280.pth')
-    tensor = infer(model_path, sentences)
-    print(tensor[0, :, :])
+    tensor = infer(model_path, sentences[:batch_size])
+    # print(tensor[0, :, :])
+    tensor_couple_list = [(tensor[:, i, :], tensor[:, i + 1, :]) for i in range(0, batch_size, 2)]
 
     print('END')

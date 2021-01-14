@@ -101,6 +101,10 @@ def sent_keyword_tag(sent: str, lang: str, ranges: str, start: str, end: str):
                 if len(token_list_0) > 0:
                     word_tag_list.extend(cut_and_tag(token_list_0, '0'))
                     token_list_0 = []
+        if len(token_list_1) > 0:
+            word_tag_list.extend(cut_and_tag(token_list_1, '1'))
+        if len(token_list_0) > 0:
+            word_tag_list.extend(cut_and_tag(token_list_0, '0'))
         sent = ' '.join([word for word, tag in word_tag_list])
         keyword_tags = ' '.join([tag for word, tag in word_tag_list])
         if len(sent) != len(keyword_tags):
@@ -157,7 +161,7 @@ def corpus_process(corpus_path, data_sets=None):
 
 if __name__ == '__main__':
 
-    # data_sets = ['test']
+    # data_sets = ['trial']
     data_sets = ['training', 'dev', 'trial', 'test']
     corpus_df = corpus_process(task_corpus_path, data_sets=data_sets)
 
