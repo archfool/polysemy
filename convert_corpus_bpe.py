@@ -70,13 +70,15 @@ if __name__ == '__main__':
     with open(input_file, 'r', encoding='utf-8') as f:
         corpus = f.readlines()
 
+    corpus_bpe = []
     bpe = fastBPE.fastBPE(codes_path, vocab_path)
     for idx, sent in enumerate(corpus):
-        sent_bpe = bpe.apply("Roasted barramundi fish")
-        print(type(sent_bpe))
-        break
+        sent_bpe = bpe.apply("Roasted barramundi fish")[0]
+        corpus_bpe.append(sent_bpe)
+        if idx % 100 == 0:
+            print("{}:{}".format(idx, sent_bpe))
 
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(corpus_bpe))
 
     print('END')
-
-
