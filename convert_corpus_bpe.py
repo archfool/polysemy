@@ -79,6 +79,6 @@ if __name__ == '__main__':
             print("{}:{}".format(idx, sent_bpe))
 
     with open(output_file, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(corpus_bpe))
+        f.write(''.join(corpus_bpe))
 
     print('END')
