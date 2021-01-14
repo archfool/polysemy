@@ -1,4 +1,5 @@
 import os
+import fastBPE
 from init_path import src_path, data_path, src_xml_path, model_xml_path, task_corpus_path
 
 # def to_bpe(file_input, file_output, fastbpe_path, codes_path, vocab_path, data_path=''):
@@ -49,14 +50,14 @@ if __name__ == '__main__':
     output_file = os.path.join(data_path, 'SemEval2021_Task2_corpus_bpe.txt')
 
     # apply bpe to tmp file
-    comment_line = "{fastbpe_path} applybpe {output} {input} {codes} {vocab}".format(
-        fastbpe_path=fastbpe_path,
-        output=input_file,
-        input=output_file,
-        codes=codes_path,
-        vocab=vocab_path
-    )
-    os.system(comment_line)
+    # comment_line = "{fastbpe_path} applybpe {output} {input} {codes} {vocab}".format(
+    #     fastbpe_path=fastbpe_path,
+    #     output=input_file,
+    #     input=output_file,
+    #     codes=codes_path,
+    #     vocab=vocab_path
+    # )
+    # os.system(comment_line)
 
     # with open(input_file, 'r', encoding='utf-8') as f:
     #     sentences = f.readlines()
@@ -66,5 +67,16 @@ if __name__ == '__main__':
     # sentences = to_bpe(sentences, fastbpe_path, codes_path, vocab_path, data_subpath)
     # print('\n\n'.join(sentences))
 
+    with open(input_file, 'r', encoding='utf-8') as f:
+        corpus = f.readlines()
+
+    bpe = fastBPE.fastBPE(codes_path, vocab_path)
+    for idx, sent in enumerate(corpus):
+        sent_bpe = bpe.apply("Roasted barramundi fish")
+        print(type(sent_bpe))
+        break
+
+
     print('END')
+
 
