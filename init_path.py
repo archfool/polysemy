@@ -2,8 +2,8 @@ import os
 
 if os.path.exists(u'c:\\'):
     root_path = u'E:\\'
-else:
-    root_path = u'/home/archfool'
+elif os.path.exists(u'/mnt/hgfs/src/'):
+    root_path = u'/mnt/hgfs/'
 
 src_root_path = os.path.join(root_path, u'src')
 data_root_path = os.path.join(root_path, u'data')

@@ -1,11 +1,12 @@
 import os
 import torch
+import pandas as pd
 
 from src.utils import AttrDict
 from src.data.dictionary import Dictionary, BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
 from src.model.transformer import TransformerModel
 
-from init_path import src_path, data_path, src_xml_path, model_xml_path, task_corpus_path
+from init_path import *
 
 batch_size = 10
 
@@ -67,6 +68,7 @@ if __name__ == '__main__':
     corpus_bpe_path = os.path.join(data_path, 'SemEval2021_Task2_corpus_bpe.txt')
     with open(corpus_bpe_path, 'r', encoding='utf-8') as f:
         sentences = f.readlines()
+    corpus_df = pd.read_csv(os.path.join(data_path, 'SemEval2021_Task2_corpus.csv'), sep='\001', encoding='utf-8')
 
     model_path = os.path.join(model_xml_path, u'mlm_17_1280.pth')
     tensor = infer(model_path, sentences[:batch_size])
