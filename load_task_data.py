@@ -32,6 +32,7 @@ def single_corpus_process(corpus, corpus_label):
     # 判定语料类型：multilingual/crosslingual
     corpus_type = 'multilingual' if sent1_lang == sent2_lang else 'crosslingual'
     # 读取前一句语料，处理语料（中文语料要分词处理），给预测词打上序列标签
+    sent1_bak = corpus['sentence1']
     if 'ranges1' in corpus.keys():
         sent1, sent1_keyword_tags = sent_keyword_tag(corpus['sentence1'], sent1_lang, ranges=corpus['ranges1'],
                                                      start=None, end=None)
@@ -40,6 +41,7 @@ def single_corpus_process(corpus, corpus_label):
                                                      start=corpus['start1'],
                                                      end=corpus['end1'])
     # 读取后一句语料，处理语料（中文语料要分词处理），给预测词打上序列标签
+    sent2_bak = corpus['sentence2']
     if 'ranges2' in corpus.keys():
         sent2, sent2_keyword_tags = sent_keyword_tag(corpus['sentence2'], sent2_lang, ranges=corpus['ranges2'],
                                                      start=None, end=None)
@@ -71,6 +73,8 @@ def single_corpus_process(corpus, corpus_label):
 
 # 给目标词打标记，返回标记序列
 def sent_keyword_tag(sent: str, lang: str, ranges: str, start: str, end: str):
+    # 将特殊的空格替换成正常空格
+    sent = sent.replace('\xa0', ' ')
     # 提取目标词span信息
     span_list = []
     if ranges is None:
@@ -85,8 +89,8 @@ def sent_keyword_tag(sent: str, lang: str, ranges: str, start: str, end: str):
     span_list.sort()
 
     # 生成目标词tag标记序列
-    keyword_tags = [' ' if (token == ' ' or token == '\xa0') else '0' for token in list(sent)]
-    # keyword_tags = [' ' if (token == ' ') else '0' for token in list(sent)]
+    # keyword_tags = [' ' if (token == ' ' or token == '\xa0') else '0' for token in list(sent)]
+    keyword_tags = [' ' if (token == ' ') else '0' for token in list(sent)]
     for span in span_list:
         for i in range(span[0], span[1]):
             if keyword_tags[i] != ' ':
@@ -131,26 +135,35 @@ def generate_bpe_tag(row, columns_name):
     for word, keyword_tag in zip(sent, keyword_tags):
         word_bpe = ""
         while True:
-            token_bpe_tmp = sent_bpe.pop(0).rstrip('@')
-            keyword_tag_tmp = keyword_tag[:len(token_bpe_tmp)]
-            keyword_tag = keyword_tag[len(token_bpe_tmp):]
-            if keyword_tag_tmp == '':
-                pass
-            elif token_bpe_tmp.endswith('.') \
-                    or token_bpe_tmp.endswith('-') \
-                    or token_bpe_tmp.endswith(')') \
-                    or token_bpe_tmp.endswith("'") \
-                    or token_bpe_tmp.endswith('"'):
-                pass
-            elif len(set(keyword_tag_tmp)) != 1:
-                print("ERROR: [{}/{}/{}] multi-tag: {} in {}".format(
-                    columns_name[0],
-                    len(keyword_tag_tmp),
-                    ''.join(keyword_tag_tmp),
-                    token_bpe_tmp,
-                    sent))
+            token_bpe_tmp = sent_bpe.pop(0)
+            if token_bpe_tmp.endswith('@@'):
+                keyword_tag_tmp = keyword_tag[:len(token_bpe_tmp) - 2] + "00"
+                keyword_tag = keyword_tag[len(token_bpe_tmp) - 2:]
+            else:
+                keyword_tag_tmp = keyword_tag[:len(token_bpe_tmp)]
+                keyword_tag = keyword_tag[len(token_bpe_tmp):]
             word_bpe += token_bpe_tmp
+            word_bpe = word_bpe.rstrip('@@')
             bpe_keyword_tags.append(keyword_tag_tmp)
+            # # 异常判断
+            # if token_bpe_tmp.endswith('@@'):
+            #     keyword_tag_tmp = keyword_tag_tmp[:-2]
+            #     token_bpe_tmp = token_bpe_tmp[:-2]
+            # if token_bpe_tmp == '@@':
+            #     pass
+            # if token_bpe_tmp.endswith('.') \
+            #         or token_bpe_tmp.endswith('-') \
+            #         or token_bpe_tmp.endswith(')') \
+            #         or token_bpe_tmp.endswith("'") \
+            #         or token_bpe_tmp.endswith('"'):
+            #     pass
+            # elif len(set(keyword_tag_tmp)) != 1:
+            #     print("ERROR: [{}/{}/{}] multi-tag: {} in {}".format(
+            #         columns_name[0],
+            #         len(keyword_tag_tmp),
+            #         ''.join(keyword_tag_tmp),
+            #         token_bpe_tmp,
+            #         sent))
             if word == word_bpe:
                 break
     return ' '.join(bpe_keyword_tags)
@@ -202,22 +215,20 @@ def corpus_process(corpus_path, data_sets=None):
     return corpus_df
 
 
-def keyword_tag_check_single(s, t, s_bpe, t_bpe):
-    s = ''.join(s)
-    t = ''.join(t)
+def keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple):
     k = ''
-    for word, tag in zip(s, t):
+    for word, tag in zip(list(s), list(t)):
         if tag == '1':
             k += word
-    s_bpe = ''.join(s_bpe).replace('@', '')
-    t_bpe = ''.join(t_bpe)
     k_bpe = ''
-    for word, tag in zip(s_bpe, t_bpe):
+    for word, tag in zip(list(s_bpe), list(t_bpe)):
         if tag == '1':
             k_bpe += word
-    print("{}==={}".format(k, k_bpe))
+    # print("{}\n{}".format(k, k_bpe))
     if k != k_bpe:
-        print("ERROR:{}==={}".format(k, k_bpe))
+        print("ERROR:{}\n{}\n{}".format(idx, k, k_bpe))
+    if len(s_bpe.split(' ')) != len(t_bpe_simple.split(' ')):
+        print("ERROR:[{}]{}".format(idx, len(t_bpe_simple)))
 
 
 def keyword_tag_check(df: pd.DataFrame):
@@ -228,12 +239,14 @@ def keyword_tag_check(df: pd.DataFrame):
         t = row['sent1_keyword_tags']
         s_bpe = row['sent1_bpe']
         t_bpe = row['sent1_bpe_keyword_tags']
-        keyword_tag_check_single(s, t, s_bpe, t_bpe)
+        t_bpe_simple = row['sent1_bpe_keyword_tags_simple']
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple)
         s = row['sent2']
         t = row['sent2_keyword_tags']
         s_bpe = row['sent2_bpe']
         t_bpe = row['sent2_bpe_keyword_tags']
-        keyword_tag_check_single(s, t, s_bpe, t_bpe)
+        t_bpe_simple = row['sent2_bpe_keyword_tags_simple']
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple)
 
 
 if __name__ == '__main__':
@@ -244,8 +257,8 @@ if __name__ == '__main__':
     corpus_txt_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
 
     # 读取语料数据
-    data_sets = ['trial']
-    # data_sets = ['training', 'dev', 'trial', 'test']
+    # data_sets = ['trial']
+    data_sets = ['training', 'dev', 'trial', 'test']
     corpus_df = corpus_process(task_corpus_path, data_sets=data_sets)
 
     # 进行BPE分词转换
@@ -254,13 +267,13 @@ if __name__ == '__main__':
     corpus_df['sent2_bpe'] = corpus_df['sent2'].apply(lambda sent: bpe.apply([sent])[0])
     corpus_df['sent1_bpe_keyword_tags'] = corpus_df.apply(
         lambda row: generate_bpe_tag(row, ['sent1', 'sent1_bpe', 'sent1_keyword_tags']), axis=1)
-    corpus_df['sent1_bpe_keyword_tags_simple'] = corpus_df['sent1_bpe_keyword_tags'].apply(
-        lambda ss: ['1' if '1' in list(s) else '0' for s in ss])
     corpus_df['sent2_bpe_keyword_tags'] = corpus_df.apply(
         lambda row: generate_bpe_tag(row, ['sent2', 'sent2_bpe', 'sent2_keyword_tags']), axis=1)
+    corpus_df['sent1_bpe_keyword_tags_simple'] = corpus_df['sent1_bpe_keyword_tags'].apply(
+        lambda ss: ' '.join(['1' if '1' in list(s) else '0' for s in ss.split()]))
     corpus_df['sent2_bpe_keyword_tags_simple'] = corpus_df['sent2_bpe_keyword_tags'].apply(
-        lambda ss: ['1' if '1' in list(s) else '0' for s in ss])
-    # keyword_tag_check(corpus_df)
+        lambda ss: ' '.join(['1' if '1' in list(s) else '0' for s in ss.split()]))
+    keyword_tag_check(corpus_df)
 
     # 存储数据到文件
     corpus_df.to_csv(corpus_csv_path, sep='\001', index=None, encoding='utf-8')
