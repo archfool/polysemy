@@ -99,30 +99,48 @@ def sent_keyword_tag(sent: str, lang: str, ranges: str, start: str, end: str):
 
     # 对中文语料进行分词和修正
     if lang == 'zh':
-        word_tag_list = []
-        token_list_0_tmp = []
-        token_list_1 = []
-        for token, tag in zip(sent, keyword_tags):
-            if tag == '0':
-                token_list_0_tmp.append(token)
-                if len(token_list_1) > 0:
-                    word_tag_list.extend(cut_and_tag(token_list_1, '1'))
-                    token_list_1 = []
-            else:
-                token_list_1.append(token)
-                if len(token_list_0_tmp) > 0:
-                    word_tag_list.extend(cut_and_tag(token_list_0_tmp, '0'))
-                    token_list_0_tmp = []
-        if len(token_list_1) > 0:
-            word_tag_list.extend(cut_and_tag(token_list_1, '1'))
-        if len(token_list_0_tmp) > 0:
-            word_tag_list.extend(cut_and_tag(token_list_0_tmp, '0'))
-        sent = ' '.join([word for word, tag in word_tag_list])
-        keyword_tags = ' '.join([tag for word, tag in word_tag_list])
+        if True:
+            word_list = jieba.lcut(sent)
+            word_tag_list = []
+            for word in word_list:
+                word_tag_tmp = keyword_tags[:len(word)]
+                word_tag_list.append(word_tag_tmp)
+                keyword_tags = keyword_tags[len(word):]
+            sent = ' '.join(word_list)
+            keyword_tags = ' '.join(word_tag_list)
+        else:
+            word_tag_list = []
+            token_list_0_tmp = []
+            token_list_1_tmp = []
+            for token, tag in zip(sent, keyword_tags):
+                if tag == '0':
+                    token_list_0_tmp.append(token)
+                    if len(token_list_1_tmp) > 0:
+                        word_tag_list.extend(cut_and_tag(token_list_1_tmp, '1'))
+                        token_list_1_tmp = []
+                else:
+                    token_list_1_tmp.append(token)
+                    if len(token_list_0_tmp) > 0:
+                        word_tag_list.extend(cut_and_tag(token_list_0_tmp, '0'))
+                        token_list_0_tmp = []
+            if len(token_list_1_tmp) > 0:
+                word_tag_list.extend(cut_and_tag(token_list_1_tmp, '1'))
+            if len(token_list_0_tmp) > 0:
+                word_tag_list.extend(cut_and_tag(token_list_0_tmp, '0'))
+            sent = ' '.join([word for word, tag in word_tag_list])
+            keyword_tags = ' '.join([tag for word, tag in word_tag_list])
         if len(sent) != len(keyword_tags):
             print("len(sent)!=len(keyword_tags):{}".format(sent))
 
     return sent, keyword_tags
+
+
+# 中文语料的分词和打目标词标签
+def cut_and_tag(token_list, tag):
+    sent = ''.join(token_list)
+    word_list = jieba.lcut(sent)
+    word_tag_list = [(word, tag * len(word) if word != ' ' else ' ') for word in word_list]
+    return word_tag_list
 
 
 # 根据原语料、BPE语料、原语料tag，生成BPE语料tag
@@ -167,14 +185,6 @@ def generate_bpe_tag(row, columns_name):
             if word == word_bpe:
                 break
     return ' '.join(bpe_keyword_tags)
-
-
-# 中文语料的分词和打目标词标签
-def cut_and_tag(token_list, tag):
-    sent = ''.join(token_list)
-    word_list = jieba.lcut(sent)
-    word_tag_list = [(word, tag * len(word) if word != ' ' else ' ') for word in word_list]
-    return word_tag_list
 
 
 # 语料读取和处理
@@ -247,6 +257,7 @@ def keyword_tag_check(df: pd.DataFrame):
         t_bpe = row['sent2_bpe_keyword_tags']
         t_bpe_simple = row['sent2_bpe_keyword_tags_simple']
         keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple)
+    print(idx)
 
 
 if __name__ == '__main__':
@@ -278,7 +289,7 @@ if __name__ == '__main__':
     # 存储数据到文件
     corpus_df.to_csv(corpus_csv_path, sep='\001', index=None, encoding='utf-8')
     with open(corpus_txt_path, 'w', encoding='utf-8') as f:
-        for sent1, sent2 in zip(corpus_df['sent1'].to_list(), corpus_df['sent2'].to_list()):
+        for sent1, sent2 in zip(corpus_df['sent1_bpe'].to_list(), corpus_df['sent2_bpe'].to_list()):
             f.write(sent1 + '\n' + sent2 + '\n')
 
     print('END')
