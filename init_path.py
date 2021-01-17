@@ -3,7 +3,7 @@ import os
 if os.path.exists(u'c:\\'):
     root_path = u'E:\\'
 elif os.path.exists(u'/media/archfool/data'):
-    root_path = u'/mnt/hgfs/'
+    root_path = u'/media/archfool/data/'
 elif os.path.exists(u'/mnt/hgfs/'):
     root_path = u'/mnt/hgfs/'
 
