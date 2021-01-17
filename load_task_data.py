@@ -235,13 +235,19 @@ def keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple):
         if tag == '1':
             k_bpe += word
     # print("{}\n{}".format(k, k_bpe))
+    # 检查BPE前后，提取的文本是否一致
     if k != k_bpe:
         print("ERROR:{}\n{}\n{}".format(idx, k, k_bpe))
+    # 检查BPE的seg和tag的长度是否一致
     if len(s_bpe.split(' ')) != len(t_bpe_simple.split(' ')):
+        print("ERROR:[{}]{}".format(idx, len(t_bpe_simple)))
+    # 检查是否会受到strip()影响
+    if len(s_bpe.strip().split(' ')) != len(t_bpe_simple.split(' ')):
         print("ERROR:[{}]{}".format(idx, len(t_bpe_simple)))
 
 
 def keyword_tag_check(df: pd.DataFrame):
+    idx = -1
     for idx, row in df.iterrows():
         if idx % 1000 == 0:
             print(idx)

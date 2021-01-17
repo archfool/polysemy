@@ -10,13 +10,14 @@ from init_path import *
 
 batch_size = 10
 
-
 # 加载模型并预测
 def infer(model_path, sentences):
     # Reload a pretrained model
     if torch.cuda.is_available():
+        print("torch.cuda.is_available={}".format(torch.cuda.is_available()))
         reloaded = torch.load(model_path)
     else:
+        print("torch.cuda.is_available={}".format(torch.cuda.is_available()))
         reloaded = torch.load(model_path, map_location=torch.device('cpu'))
     params = AttrDict(reloaded['params'])
     print("Supported languages: %s" % ", ".join(params.lang2id.keys()))
@@ -65,14 +66,13 @@ def infer(model_path, sentences):
 
 
 if __name__ == '__main__':
-    corpus_bpe_path = os.path.join(data_path, 'SemEval2021_Task2_corpus_bpe.txt')
+    corpus_bpe_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
     with open(corpus_bpe_path, 'r', encoding='utf-8') as f:
         sentences = f.readlines()
-    corpus_df = pd.read_csv(os.path.join(data_path, 'SemEval2021_Task2_corpus.csv'), sep='\001', encoding='utf-8')
+    # corpus_df = pd.read_csv(os.path.join(data_path, 'SemEval2021_Task2_corpus.csv'), sep='\001', encoding='utf-8')
 
     model_path = os.path.join(model_xml_path, u'mlm_17_1280.pth')
-    tensor = infer(model_path, sentences[:batch_size])
-    # print(tensor[0, :, :])
+    tensor = infer(model_path, sentences[-batch_size:])
     tensor_couple_list = [(tensor[:, i, :], tensor[:, i + 1, :]) for i in range(0, batch_size, 2)]
 
     print('END')
