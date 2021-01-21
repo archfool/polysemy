@@ -14,7 +14,7 @@ from init_path_config import *
 from util_tools import print_fun_time
 
 if root_path.startswith(u"/media"):
-    batch_size = 10
+    batch_size = 100
 else:
     batch_size = 10
 
