@@ -1,6 +1,8 @@
 import os
 import sys
+import collections
 import torch
+import tensorflow as tf
 import pandas as pd
 import numpy as np
 import time
@@ -13,7 +15,10 @@ from src.model.transformer import TransformerModel
 from init_path_config import *
 from util_tools import print_fun_time
 
-batch_size = 10
+if root_path.startswith("/media"):
+    batch_size = 32
+else:
+    batch_size = 8
 
 
 @print_fun_time
@@ -77,17 +82,32 @@ def generate_model_input(sentences, key_word_idxs, params, dico):
     return word_ids, lengths, langs
 
 
-# @print_fun_time
-def infer_one_batch(one_batch_input, para_input, model_xml):
-    sentences, key_word_idxs = one_batch_input
+@print_fun_time
+def infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml):
+    corpus_df = one_batch_input[0]
+    # sentences, key_word_idxs = one_batch_input
     params, dico = para_input
+
+    sent1_bpe = corpus_df['sent1_bpe'].to_list()
+    sent2_bpe = corpus_df['sent2_bpe'].to_list()
+    sentences = []
+    for s_1, s_2 in zip(sent1_bpe, sent2_bpe):
+        sentences.append(s_1)
+        sentences.append(s_2)
+
+    key_word_idxs_1 = corpus_df['sent1_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
+    key_word_idxs_2 = corpus_df['sent2_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
+    key_word_idxs = []
+    for idx_1, idx_2 in zip(key_word_idxs_1, key_word_idxs_2):
+        key_word_idxs.append([int(idx) for idx in idx_1])
+        key_word_idxs.append([int(idx) for idx in idx_2])
 
     word_ids, lengths, langs = generate_model_input(sentences, key_word_idxs, params, dico)
 
     # Forward
     tensor = model_xml('fwd', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
 
-    feature_tensor = torch.tensor([])
+    feature_tensor_batch = torch.tensor([])
     for i, key_word in enumerate(key_word_idxs):
         tensor_single = tensor[:, i, :]
         key_word_tensor = torch.gather(tensor_single, dim=0,
@@ -98,37 +118,62 @@ def infer_one_batch(one_batch_input, para_input, model_xml):
         feature_tensor_single = torch.cat((key_word_tensor_max_pooling,
                                            key_word_tensor_avg_pooling,
                                            sent_tensor),
-                                          dim=0).reshape([1, -1])
+                                          dim=0)
+        if i % 2 == 0:
+            sent1_feature_tensor_single = feature_tensor_single
+        else:
+            sent_couple_feature_tensor_single = torch.cat(
+                (sent1_feature_tensor_single, feature_tensor_single),
+                dim=0).reshape([1, -1])
+            # a = sent_couple_feature_tensor_single.detach().numpy()
+            # features = collections.OrderedDict()
+            # features["input_ids"] = create_float_feature(feature.input_ids)
+            # features["input_ids"] = create_float_feature(feature.input_ids)
+            # features["input_ids"] = create_float_feature(feature.input_ids)
+            # tf_example = tf.train.Example(features=tf.train.Features(feature=features))
+            # tf_file_writer.write(tf_example.SerializeToString())
+            feature_tensor_batch = torch.cat((feature_tensor_batch, sent_couple_feature_tensor_single), dim=0)
         # np.savetxt(os.path.join(data_path, 'test.txt'), feature_tensor_single.detach().numpy())
         # np.loadtxt(os.path.join(data_path, 'test.txt'))
-        feature_tensor = torch.cat((feature_tensor, feature_tensor_single), dim=0)
 
-    return feature_tensor
+    return feature_tensor_batch
+
+
+def create_float_feature(values):
+    f = tf.train.Feature(float_list=tf.train.FloatList(value=list(values)))
+    return f
 
 
 @print_fun_time
 def infer_all(batch_input, para_input, model_xml, batch_size=10):
     n_batch = len(batch_input[0])
+    print("data num : {}".format(n_batch))
     tensor = torch.tensor([])
+
+    tf_file_writer = tf.python_io.TFRecordWriter(os.path.join(data_path, '123'))
 
     for i in range(math.ceil(n_batch / batch_size)):
         count_batch = i + 1
         one_batch_input = [x[:batch_size] for x in batch_input]
         batch_input = [x[batch_size:] for x in batch_input]
-        tensor_one_batch = infer_one_batch(one_batch_input, para_input, model_xml)
+        tensor_one_batch = infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml)
+        # tensor = tensor_one_batch
         # tensor = torch.cat((tensor, tensor_one_batch), dim=0)
         if count_batch % 100 == 0:
-            print("data count: {}: {}".format(batch_size * count_batch, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+            print("data count: {}: {}".format(batch_size * count_batch,
+                                              time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
 
-    return tensor
+    tf_file_writer.close()
+    return tensor_one_batch
 
 
 # 加载模型并预测
 @print_fun_time
-def infer(model_path, sentences, key_word_idxs):
+def infer(model_path, corpus_df):
     model, params, dico = load_model_torch(model_path)
 
-    batch_input = [sentences, key_word_idxs]
+    # batch_input = [sentences, key_word_idxs]
+    batch_input = [corpus_df]
     para_input = [params, dico]
 
     tensor = infer_all(batch_input, para_input, model, batch_size=batch_size)
@@ -138,21 +183,22 @@ def infer(model_path, sentences, key_word_idxs):
 
 
 if __name__ == '__main__':
-    corpus_bpe_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
-    with open(corpus_bpe_path, 'r', encoding='utf-8') as f:
-        sentences = f.readlines()
+    # corpus_bpe_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
+    # with open(corpus_bpe_path, 'r', encoding='utf-8') as f:
+    #     sentences = f.readlines()
     corpus_df = pd.read_csv(os.path.join(data_path, 'SemEval2021_Task2_corpus.csv'), sep='\001', encoding='utf-8')
 
-    key_word_idxs_1 = corpus_df['sent1_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
-    key_word_idxs_2 = corpus_df['sent2_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
-    key_word_idxs = []
-    for idx_1, idx_2 in zip(key_word_idxs_1, key_word_idxs_2):
-        key_word_idxs.append([int(idx) for idx in idx_1])
-        key_word_idxs.append([int(idx) for idx in idx_2])
+    # key_word_idxs_1 = corpus_df['sent1_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
+    # key_word_idxs_2 = corpus_df['sent2_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
+    # key_word_idxs = []
+    # for idx_1, idx_2 in zip(key_word_idxs_1, key_word_idxs_2):
+    #     key_word_idxs.append([int(idx) for idx in idx_1])
+    #     key_word_idxs.append([int(idx) for idx in idx_2])
     model_path = os.path.join(model_xml_path, u'mlm_17_1280.pth')
-    sentences = sentences[::-1]
-    key_word_idxs = key_word_idxs[::-1]
-    tensor = infer(model_path, sentences, key_word_idxs)
-    tensor_couple_list = [(tensor[:, i, :], tensor[:, i + 1, :]) for i in range(0, batch_size, 2)]
+    # sentences = sentences[::-1]
+    # key_word_idxs = key_word_idxs[::-1]
+    tensor = infer(model_path, corpus_df)
+    # tensor = infer(model_path, sentences, key_word_idxs)
+    print(tensor.size())
 
     print('END')
