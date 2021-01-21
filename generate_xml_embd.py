@@ -13,7 +13,10 @@ from src.model.transformer import TransformerModel
 from init_path_config import *
 from util_tools import print_fun_time
 
-batch_size = 10
+if root_path.startswith(u"/media"):
+    batch_size = 10
+else:
+    batch_size = 10
 
 
 @print_fun_time
