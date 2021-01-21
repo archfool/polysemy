@@ -13,10 +13,7 @@ from src.model.transformer import TransformerModel
 from init_path_config import *
 from util_tools import print_fun_time
 
-if root_path.startswith(u"/media"):
-    batch_size = 100
-else:
-    batch_size = 10
+batch_size = 10
 
 
 @print_fun_time
@@ -120,8 +117,8 @@ def infer_all(batch_input, para_input, model_xml, batch_size=10):
         batch_input = [x[batch_size:] for x in batch_input]
         tensor_one_batch = infer_one_batch(one_batch_input, para_input, model_xml)
         # tensor = torch.cat((tensor, tensor_one_batch), dim=0)
-        if count_batch % 10 == 0:
-            print("{}: {}".format(batch_size * count_batch, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+        if count_batch % 100 == 0:
+            print("data count: {}: {}".format(batch_size * count_batch, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
 
     return tensor
 
