@@ -1,6 +1,6 @@
 import os
 import fastBPE
-from init_path import src_path, data_path, src_xml_path, model_xml_path, task_corpus_path
+from init_path_config import src_path, data_path, src_xml_path, model_xml_path, task_corpus_path
 
 if __name__ == '__main__':
 

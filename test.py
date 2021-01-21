@@ -1,6 +1,6 @@
 import pandas as pd
 import copy
-from init_path import *
+from init_path_config import *
 
 def generate_bpe_tag(row, columns_name):
     sent = row[columns_name[0]].split()
@@ -44,7 +44,7 @@ def generate_bpe_tag(row, columns_name):
     return ' '.join(bpe_keyword_tags)
 
 
-def keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple):
+def keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple, t_idx):
     k = ''
     for word, tag in zip(list(s), list(t)):
         if tag == '1':
@@ -53,17 +53,24 @@ def keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple):
     for word, tag in zip(list(s_bpe), list(t_bpe)):
         if tag == '1':
             k_bpe += word
-    # print("{}\n{}".format(k, k_bpe))
+    s_bpe_list = s_bpe.split(' ')
+    print("{}\n{}\n{}\n".format(k, k_bpe, ''.join([s_bpe_list[int(idx)] for idx in t_idx.split(' ')])))
+    # 检查BPE前后，提取的文本是否一致
     if k != k_bpe:
         print("ERROR:{}\n{}\n{}".format(idx, k, k_bpe))
-    if len(s_bpe.split(' ')) != len(t_bpe_simple.split(' ')):
-        print("ERROR:[{}]{}".format(idx, len(t_bpe_simple)))
+    # 检查BPE的seg和tag的长度是否一致
+    if len(s_bpe.split(' ')) != len(t_bpe_simple):
+        print("ERROR(len_unequal):[{}]{}".format(idx, len(t_bpe_simple)))
+    # 检查是否会受到strip()影响
+    if len(s_bpe.strip().split(' ')) != len(t_bpe_simple):
+        print("ERROR(strip):[{}]{}".format(idx, len(t_bpe_simple)))
 
 
 def keyword_tag_check(df: pd.DataFrame):
+    idx = -1
     for idx, row in df.iterrows():
-        if idx==6000:
-            print('')
+        # if row['sent1_lang'] != 'zh':
+        #     continue
         if idx % 1000 == 0:
             print(idx)
         s = row['sent1']
@@ -71,13 +78,17 @@ def keyword_tag_check(df: pd.DataFrame):
         s_bpe = row['sent1_bpe']
         t_bpe = row['sent1_bpe_keyword_tags']
         t_bpe_simple = row['sent1_bpe_keyword_tags_simple']
-        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple)
+        t_idx = row['sent1_bpe_keyword_idx']
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple, t_idx)
         s = row['sent2']
         t = row['sent2_keyword_tags']
         s_bpe = row['sent2_bpe']
         t_bpe = row['sent2_bpe_keyword_tags']
         t_bpe_simple = row['sent2_bpe_keyword_tags_simple']
-        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple)
+        t_idx = row['sent2_bpe_keyword_idx']
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple, t_idx)
+    print(idx)
+
 
 
 if __name__=="__main__":
@@ -90,6 +101,6 @@ if __name__=="__main__":
     tag1 = corpus_df['sent1_keyword_tags']
     sent2 = corpus_df['sent2']
     tag2 = corpus_df['sent2_keyword_tags']
-    row = corpus_df.iloc[6000]
-    generate_bpe_tag(row, ['sent2', 'sent2_bpe', 'sent2_keyword_tags'])
+    # row = corpus_df.iloc[6000]
+    # generate_bpe_tag(row, ['sent2', 'sent2_bpe', 'sent2_keyword_tags'])
     print('END')

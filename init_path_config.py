@@ -1,5 +1,6 @@
 import os
 
+
 if os.path.exists(u'c:\\'):
     root_path = u'E:\\'
 elif os.path.exists(u'/media/archfool/data'):
