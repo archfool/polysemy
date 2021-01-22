@@ -13,7 +13,7 @@ from src.data.dictionary import Dictionary, BOS_WORD, EOS_WORD, PAD_WORD, UNK_WO
 from src.model.transformer import TransformerModel
 
 from init_path_config import *
-from util_tools import print_fun_time
+from util_tools import print_fun_time, check_gpu
 
 if root_path.startswith("/media"):
     batch_size = 32
@@ -114,10 +114,15 @@ def infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml):
     print(torch.cuda.device_count())
 
     feature_tensor_batch = torch.tensor([])
+    feature_tensor_batch = check_gpu(feature_tensor_batch)
     for i, key_word in enumerate(key_word_idxs):
         tensor_single = tensor[:, i, :]
+        index = torch.tensor(key_word).unsqueeze(1).expand([-1, tensor_single.size()[1]])
+        index = check_gpu(index)
+        if torch.cuda.is_available():
+            feature_tensor_batch = feature_tensor_batch.cuda()
         key_word_tensor = torch.gather(tensor_single, dim=0,
-                                       index=torch.tensor(key_word).unsqueeze(1).expand([-1, tensor_single.size()[1]]))
+                                       index=index)
         key_word_tensor_max_pooling = torch.max(key_word_tensor, dim=0).values
         key_word_tensor_avg_pooling = torch.mean(key_word_tensor, dim=0)
         sent_tensor = tensor_single[0, :]
@@ -155,6 +160,7 @@ def infer_all(batch_input, para_input, model_xml, batch_size=10):
     n_batch = len(batch_input[0])
     print("data num : {}".format(n_batch))
     tensor = torch.tensor([])
+    tensor = check_gpu(tensor)
 
     tf_file_writer = tf.python_io.TFRecordWriter(os.path.join(data_path, '123'))
 

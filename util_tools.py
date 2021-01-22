@@ -1,5 +1,5 @@
 import time
-
+import torch
 
 def print_fun_time(func):
     def run(*args, **kwargs):
@@ -16,5 +16,13 @@ def print_fun_time(func):
                 ret = func()
         print("[End][{}][{}]".format(func.__name__, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         return ret
-
     return run
+
+
+def check_gpu(x):
+    if x is None:
+        return None
+    elif torch.cuda.is_available():
+        return x.cuda()
+    else:
+        return x
