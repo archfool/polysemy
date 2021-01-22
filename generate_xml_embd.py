@@ -16,7 +16,7 @@ from init_path_config import *
 from util_tools import print_fun_time, check_gpu
 
 if root_path.startswith("/media"):
-    batch_size = 32
+    batch_size = 64
 else:
     batch_size = 8
 
@@ -86,7 +86,7 @@ def generate_model_input(sentences, key_word_idxs, params, dico):
     return word_ids, lengths, langs
 
 
-@print_fun_time
+# @print_fun_time
 def infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml):
     corpus_df = one_batch_input[0]
     # sentences, key_word_idxs = one_batch_input
@@ -110,8 +110,8 @@ def infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml):
 
     # Forward
     tensor = model_xml('fwd', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
-    print(tensor.device)
-    print(torch.cuda.device_count())
+    # print(tensor.device)
+    # print(torch.cuda.device_count())
 
     feature_tensor_batch = torch.tensor([])
     feature_tensor_batch = check_gpu(feature_tensor_batch)

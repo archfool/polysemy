@@ -277,8 +277,8 @@ if __name__ == '__main__':
     corpus_txt_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
 
     # 读取语料数据
-    data_sets = ['trial']
-    # data_sets = ['training', 'dev', 'trial', 'test']
+    # data_sets = ['trial']
+    data_sets = ['training', 'dev', 'trial', 'test']
     corpus_df = corpus_process(task_corpus_path, data_sets=data_sets)
 
     # 进行BPE分词转换
