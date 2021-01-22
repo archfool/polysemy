@@ -341,6 +341,16 @@ class TransformerModel(nn.Module):
         # lengths = (x != self.pad_index).float().sum(dim=1)
         # mask = x != self.pad_index
 
+        if torch.cuda.is_available():
+            if x is not None:
+                x = x.cuda()
+            if lengths is not None:
+                lengths = lengths.cuda()
+            if positions is not None:
+                positions = positions.cuda()
+            if langs is not None:
+                langs = langs.cuda()
+
         # check inputs
         slen, bs = x.size()
         assert lengths.size(0) == bs
