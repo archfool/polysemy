@@ -16,7 +16,7 @@ from init_path_config import *
 from util_tools import print_fun_time, check_gpu
 
 if root_path.startswith("/media"):
-    batch_size = 32
+    batch_size = 8
 else:
     batch_size = 8
 
