@@ -45,6 +45,10 @@ def load_model_torch(model_path):
 
     # build model / reload weights
     model = TransformerModel(params, dico, True, True)
+    if torch.cuda.is_available():
+        print("construct model in GPU")
+        model = model.cuda()
+
     model.eval()
     model.load_state_dict(reloaded['model'])
 
@@ -106,6 +110,8 @@ def infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml):
 
     # Forward
     tensor = model_xml('fwd', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
+    print(tensor.device)
+    print(torch.cuda.device_count())
 
     feature_tensor_batch = torch.tensor([])
     for i, key_word in enumerate(key_word_idxs):
