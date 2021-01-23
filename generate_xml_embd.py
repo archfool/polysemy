@@ -119,8 +119,6 @@ def infer_one_batch(tf_file_writer, one_batch_input, para_input, model_xml):
         tensor_single = tensor[:, i, :]
         index = torch.tensor(key_word).unsqueeze(1).expand([-1, tensor_single.size()[1]])
         index = check_gpu(index)
-        if torch.cuda.is_available():
-            feature_tensor_batch = feature_tensor_batch.cuda()
         key_word_tensor = torch.gather(tensor_single, dim=0,
                                        index=index)
         key_word_tensor_max_pooling = torch.max(key_word_tensor, dim=0).values
