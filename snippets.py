@@ -21,7 +21,6 @@ from datetime import datetime
 import numpy as np
 
 
-
 def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
     """
     """
