@@ -5,7 +5,7 @@ import jieba
 import copy
 import fastBPE
 
-from init_path_config import *
+from init_config import *
 
 jieba.lcut("机器学习")
 

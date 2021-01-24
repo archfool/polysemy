@@ -1,6 +1,6 @@
 import pandas as pd
 import copy
-from init_path_config import *
+from init_config import *
 
 def generate_bpe_tag(row, columns_name):
     sent = row[columns_name[0]].split()

@@ -26,3 +26,4 @@ def check_gpu(x):
         return x.cuda()
     else:
         return x
+

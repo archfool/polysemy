@@ -50,12 +50,14 @@ def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
     start_steps = 1
     total_steps = 1
     if params["reload"] == True:
+        # params["reload_model"] is the model_file_path
         model.load_state_dict(torch.load(
                 params["reload_model"],
                 map_location=lambda storage, loc: storage),
                 False)
         logger.info("Reload model complete!")
         
+        # todo params["reload_model"] is the model_file_path
         opti_path = params["reload_model"] + ".optimizer"
         if os.path.exists(opti_path):
             optimizer.load_state_dict(torch.load(
@@ -108,6 +110,7 @@ def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
             
             loss = loss / accumulate_steps
             loss.backward()
+            # todo
             torch.nn.utils.clip_grad_norm_(model.parameters(), 
                                            params["grad_clip"])
            
@@ -124,9 +127,9 @@ def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
         if eval_fn:
             eval_fn(model, generator, params)
     
-        logger.info("shuffle train data...")
+        logger.info("shuffle train_batch data...")
         shuffle_data(params["data_dir"], params["train_dir"])
-        logger.info("shuffle train data completed!")
+        logger.info("shuffle train_batch data completed!")
         
     save_model()
     logger.info("Train Completed!")
