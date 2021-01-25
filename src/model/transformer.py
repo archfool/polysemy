@@ -326,8 +326,17 @@ class TransformerModel(nn.Module):
             return self.fwd(**kwargs)
         elif mode == 'predict':
             return self.predict(**kwargs)
+        elif mode == 'polysemy':
+            return self.polysemy(**kwargs)
         else:
             raise Exception("Unknown mode: %s" % mode)
+
+
+    def polysemy(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):
+        tensor = self.fwd(x, lengths, causal, src_enc, src_len, positions, langs, cache)
+
+        return tensor
+
 
     def fwd(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):
         """
@@ -340,16 +349,6 @@ class TransformerModel(nn.Module):
         """
         # lengths = (x != self.pad_index).float().sum(dim=1)
         # mask = x != self.pad_index
-
-        if torch.cuda.is_available():
-            if x is not None:
-                x = x.cuda()
-            if lengths is not None:
-                lengths = lengths.cuda()
-            if positions is not None:
-                positions = positions.cuda()
-            if langs is not None:
-                langs = langs.cuda()
 
         # check inputs
         slen, bs = x.size()

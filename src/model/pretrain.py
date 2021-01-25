@@ -23,7 +23,7 @@ def load_fasttext_model(path):
     except ImportError:
         raise Exception("Unable to import fastText. Please install fastText for Python: "
                         "https://github.com/facebookresearch/fastText")
-    return fastText.load_model(path)
+    return fastText.reload_model(path)
 
 
 def read_txt_embeddings(path, params):

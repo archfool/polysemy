@@ -57,7 +57,7 @@ def load_binarized(path, params):
     """
     assert path.endswith('.pth')
     if params.debug_train:
-        path = path.replace('train', 'valid')
+        path = path.replace('train_batch', 'valid')
     if getattr(params, 'multi_gpu', False):
         split_path = '%s.%i.pth' % (path[:-4], params.local_rank)
         if os.path.isfile(split_path):
@@ -116,10 +116,10 @@ def load_mono_data(params, data):
         data['mono'][lang] = {}
         data['mono_stream'][lang] = {}
 
-        for splt in ['train', 'valid', 'test']:
+        for splt in ['train_batch', 'valid', 'test']:
 
             # no need to load training data for evaluation
-            if splt == 'train' and params.eval_only:
+            if splt == 'train_batch' and params.eval_only:
                 continue
 
             # load data / update dictionary parameters / update data
@@ -127,11 +127,11 @@ def load_mono_data(params, data):
             set_dico_parameters(params, data, mono_data['dico'])
 
             # create stream dataset
-            bs = params.batch_size if splt == 'train' else 1
+            bs = params.batch_size if splt == 'train_batch' else 1
             data['mono_stream'][lang][splt] = StreamDataset(mono_data['sentences'], mono_data['positions'], bs, params)
 
             # if there are several processes on the same machine, we can split the dataset
-            if splt == 'train' and params.split_data and 1 < params.n_gpu_per_node <= data['mono_stream'][lang][splt].n_batches:
+            if splt == 'train_batch' and params.split_data and 1 < params.n_gpu_per_node <= data['mono_stream'][lang][splt].n_batches:
                 n_batches = data['mono_stream'][lang][splt].n_batches // params.n_gpu_per_node
                 a = n_batches * params.local_rank
                 b = n_batches * params.local_rank + n_batches
@@ -144,12 +144,12 @@ def load_mono_data(params, data):
                 dataset = Dataset(mono_data['sentences'], mono_data['positions'], params)
 
                 # remove empty and too long sentences
-                if splt == 'train':
+                if splt == 'train_batch':
                     dataset.remove_empty_sentences()
                     dataset.remove_long_sentences(params.max_len)
 
                 # if there are several processes on the same machine, we can split the dataset
-                if splt == 'train' and params.n_gpu_per_node > 1 and params.split_data:
+                if splt == 'train_batch' and params.n_gpu_per_node > 1 and params.split_data:
                     n_sent = len(dataset) // params.n_gpu_per_node
                     a = n_sent * params.local_rank
                     b = n_sent * params.local_rank + n_sent
@@ -177,14 +177,14 @@ def load_para_data(params, data):
         assert (src, tgt) not in data['para']
         data['para'][(src, tgt)] = {}
 
-        for splt in ['train', 'valid', 'test']:
+        for splt in ['train_batch', 'valid', 'test']:
 
             # no need to load training data for evaluation
-            if splt == 'train' and params.eval_only:
+            if splt == 'train_batch' and params.eval_only:
                 continue
 
             # for back-translation, we can't load training data
-            if splt == 'train' and (src, tgt) not in required_para_train and (tgt, src) not in required_para_train:
+            if splt == 'train_batch' and (src, tgt) not in required_para_train and (tgt, src) not in required_para_train:
                 continue
 
             # load binarized datasets
@@ -204,16 +204,16 @@ def load_para_data(params, data):
             )
 
             # remove empty and too long sentences
-            if splt == 'train':
+            if splt == 'train_batch':
                 dataset.remove_empty_sentences()
                 dataset.remove_long_sentences(params.max_len)
 
             # for validation and test set, enumerate sentence per sentence
-            if splt != 'train':
+            if splt != 'train_batch':
                 dataset.tokens_per_batch = -1
 
             # if there are several processes on the same machine, we can split the dataset
-            if splt == 'train' and params.n_gpu_per_node > 1 and params.split_data:
+            if splt == 'train_batch' and params.n_gpu_per_node > 1 and params.split_data:
                 n_sent = len(dataset) // params.n_gpu_per_node
                 a = n_sent * params.local_rank
                 b = n_sent * params.local_rank + n_sent
@@ -287,7 +287,7 @@ def check_data_params(params):
     params.mono_dataset = {
         lang: {
             splt: os.path.join(params.data_path, '%s.%s.pth' % (splt, lang))
-            for splt in ['train', 'valid', 'test']
+            for splt in ['train_batch', 'valid', 'test']
         } for lang in params.langs if lang in required_mono
     }
     for paths in params.mono_dataset.values():
@@ -303,8 +303,8 @@ def check_data_params(params):
         (src, tgt): {
             splt: (os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, src)),
                    os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, tgt)))
-            for splt in ['train', 'valid', 'test']
-            if splt != 'train' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
+            for splt in ['train_batch', 'valid', 'test']
+            if splt != 'train_batch' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
         } for src in params.langs for tgt in params.langs
         if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
     }
@@ -326,7 +326,7 @@ def load_data(params):
     The returned dictionary contains:
         - dico (dictionary)
         - vocab (FloatTensor)
-        - train / valid / test (monolingual datasets)
+        - train_batch / valid / test (monolingual datasets)
     """
     data = {}
 

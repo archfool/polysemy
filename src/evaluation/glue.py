@@ -60,7 +60,7 @@ class GLUE:
         Build data iterator.
         """
         return self.data[splt]['x'].get_iterator(
-            shuffle=(splt == 'train'),
+            shuffle=(splt == 'train_batch'),
             return_indices=True,
             group_by_size=self.params.group_by_size
         )
@@ -97,7 +97,7 @@ class GLUE:
         self.optimizer_e = get_optimizer(list(self.embedder.get_parameters(params.finetune_layers)), params.optimizer_e)
         self.optimizer_p = get_optimizer(self.proj.parameters(), params.optimizer_p)
 
-        # train and evaluate the model
+        # train_batch and evaluate the model
         for epoch in range(params.n_epochs):
 
             # update epoch
@@ -119,7 +119,7 @@ class GLUE:
         Finetune for one epoch on the training set.
         """
         params = self.params
-        self.embedder.train()
+        self.embedder.train_batch()
         self.proj.train()
 
         # training variables
@@ -128,7 +128,7 @@ class GLUE:
         nw = 0  # number of words
         t = time.time()
 
-        iterator = self.get_iterator('train')
+        iterator = self.get_iterator('train_batch')
         lang_id = params.lang2id['en']
 
         while True:
@@ -146,7 +146,7 @@ class GLUE:
                 sent1, len1 = truncate(sent1, len1, params.max_len, params.eos_index)
                 sent2, len2 = truncate(sent2, len2, params.max_len, params.eos_index)
                 x, lengths, _, _ = concat_batches(sent1, len1, lang_id, sent2, len2, lang_id, params.pad_index, params.eos_index, reset_positions=False)
-            y = self.data['train']['y'][idx]
+            y = self.data['train_batch']['y'][idx]
             bs = len(lengths)
 
             # cuda
@@ -264,12 +264,12 @@ class GLUE:
         Load pair regression/classification bi-sentence tasks
         """
         params = self.params
-        data = {splt: {} for splt in ['train', 'valid', 'test']}
+        data = {splt: {} for splt in ['train_batch', 'valid', 'test']}
         dpath = os.path.join(params.data_path, 'eval', task)
 
         self.n_sent = 1 if task in ['SST-2', 'CoLA'] else 2
 
-        for splt in ['train', 'valid', 'test']:
+        for splt in ['train_batch', 'valid', 'test']:
 
             # load data and dictionary
             data1 = load_binarized(os.path.join(dpath, '%s.s1.pth' % splt), params)
@@ -315,7 +315,7 @@ class GLUE:
         # compute weights for weighted training
         if task != 'STS-B' and params.weighted_training:
             weights = torch.FloatTensor([
-                1.0 / (data['train']['y'] == i).sum().item()
+                1.0 / (data['train_batch']['y'] == i).sum().item()
                 for i in range(len(lab2id))
             ]).cuda()
             self.weights = weights / weights.sum()

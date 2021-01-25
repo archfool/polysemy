@@ -73,7 +73,7 @@ def initialize_exp(params):
     assert len(params.exp_name.strip()) > 0
 
     # create a logger
-    logger = create_logger(os.path.join(params.dump_path, 'train.log'), rank=getattr(params, 'global_rank', 0))
+    logger = create_logger(os.path.join(params.dump_path, 'train_batch.log'), rank=getattr(params, 'global_rank', 0))
     logger.info("============ Initialized logger ============")
     logger.info("\n".join("%s: %s" % (k, str(v))
                           for k, v in sorted(dict(vars(params)).items())))
@@ -192,18 +192,18 @@ def set_sampling_probs(data, params):
     assert coeff > 0
 
     # monolingual data
-    params.mono_list = [k for k, v in data['mono_stream'].items() if 'train' in v]
+    params.mono_list = [k for k, v in data['mono_stream'].items() if 'train_batch' in v]
     if len(params.mono_list) > 0:
-        probs = np.array([1.0 * len(data['mono_stream'][lang]['train']) for lang in params.mono_list])
+        probs = np.array([1.0 * len(data['mono_stream'][lang]['train_batch']) for lang in params.mono_list])
         probs /= probs.sum()
         probs = np.array([p ** coeff for p in probs])
         probs /= probs.sum()
         params.mono_probs = probs
 
     # parallel data
-    params.para_list = [k for k, v in data['para'].items() if 'train' in v]
+    params.para_list = [k for k, v in data['para'].items() if 'train_batch' in v]
     if len(params.para_list) > 0:
-        probs = np.array([1.0 * len(data['para'][(l1, l2)]['train']) for (l1, l2) in params.para_list])
+        probs = np.array([1.0 * len(data['para'][(l1, l2)]['train_batch']) for (l1, l2) in params.para_list])
         probs /= probs.sum()
         probs = np.array([p ** coeff for p in probs])
         probs /= probs.sum()

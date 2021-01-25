@@ -64,7 +64,7 @@ class SentenceEmbedder(object):
         self.n_words = model.n_words
 
     def train(self):
-        self.model.train()
+        self.model.train_batch()
 
     def eval(self):
         self.model.eval()

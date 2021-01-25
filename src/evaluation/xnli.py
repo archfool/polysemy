@@ -43,9 +43,9 @@ class XNLI:
         """
         Get a monolingual data iterator.
         """
-        assert splt in ['valid', 'test'] or splt == 'train' and lang == 'en'
+        assert splt in ['valid', 'test'] or splt == 'train_batch' and lang == 'en'
         return self.data[lang][splt]['x'].get_iterator(
-            shuffle=(splt == 'train'),
+            shuffle=(splt == 'train_batch'),
             group_by_size=self.params.group_by_size,
             return_indices=True
         )
@@ -77,7 +77,7 @@ class XNLI:
         self.optimizer_e = get_optimizer(list(self.embedder.get_parameters(params.finetune_layers)), params.optimizer_e)
         self.optimizer_p = get_optimizer(self.proj.parameters(), params.optimizer_p)
 
-        # train and evaluate the model
+        # train_batch and evaluate the model
         for epoch in range(params.n_epochs):
 
             # update epoch
@@ -98,7 +98,7 @@ class XNLI:
         Finetune for one epoch on the XNLI English training set.
         """
         params = self.params
-        self.embedder.train()
+        self.embedder.train_batch()
         self.proj.train()
 
         # training variables
@@ -107,7 +107,7 @@ class XNLI:
         nw = 0  # number of words
         t = time.time()
 
-        iterator = self.get_iterator('train', 'en')
+        iterator = self.get_iterator('train_batch', 'en')
         lang_id = params.lang2id['en']
 
         while True:
@@ -127,7 +127,7 @@ class XNLI:
                 params.eos_index,
                 reset_positions=False
             )
-            y = self.data['en']['train']['y'][idx]
+            y = self.data['en']['train_batch']['y'][idx]
             bs = len(len1)
 
             # cuda
@@ -216,17 +216,17 @@ class XNLI:
         Load XNLI cross-lingual classification data.
         """
         params = self.params
-        data = {lang: {splt: {} for splt in ['train', 'valid', 'test']} for lang in XNLI_LANGS}
+        data = {lang: {splt: {} for splt in ['train_batch', 'valid', 'test']} for lang in XNLI_LANGS}
         label2id = {'contradiction': 0, 'neutral': 1, 'entailment': 2}
         dpath = os.path.join(params.data_path, 'eval', 'XNLI')
 
-        for splt in ['train', 'valid', 'test']:
+        for splt in ['train_batch', 'valid', 'test']:
 
             for lang in XNLI_LANGS:
 
                 # only English has a training set
-                if splt == 'train' and lang != 'en':
-                    del data[lang]['train']
+                if splt == 'train_batch' and lang != 'en':
+                    del data[lang]['train_batch']
                     continue
 
                 # load data and dictionary

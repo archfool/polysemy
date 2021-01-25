@@ -290,9 +290,9 @@ class Trainer(object):
         assert stream or not self.params.use_memory or not self.params.mem_query_batchnorm
         if lang2 is None:
             if stream:
-                iterator = self.data['mono_stream'][lang1]['train'].get_iterator(shuffle=True)
+                iterator = self.data['mono_stream'][lang1]['train_batch'].get_iterator(shuffle=True)
             else:
-                iterator = self.data['mono'][lang1]['train'].get_iterator(
+                iterator = self.data['mono'][lang1]['train_batch'].get_iterator(
                     shuffle=True,
                     group_by_size=self.params.group_by_size,
                     n_sentences=-1,
@@ -300,7 +300,7 @@ class Trainer(object):
         else:
             assert stream is False
             _lang1, _lang2 = (lang1, lang2) if lang1 < lang2 else (lang2, lang1)
-            iterator = self.data['para'][(_lang1, _lang2)]['train'].get_iterator(
+            iterator = self.data['para'][(_lang1, _lang2)]['train_batch'].get_iterator(
                 shuffle=True,
                 group_by_size=self.params.group_by_size,
                 n_sentences=-1,
@@ -665,7 +665,7 @@ class Trainer(object):
         params = self.params
         name = 'model' if params.encoder_only else 'decoder'
         model = getattr(self, name)
-        model.train()
+        model.train_batch()
 
         # generate batch / select words to predict
         x, lengths, positions, langs, _ = self.generate_batch(lang1, lang2, 'causal')
@@ -705,7 +705,7 @@ class Trainer(object):
         params = self.params
         name = 'model' if params.encoder_only else 'encoder'
         model = getattr(self, name)
-        model.train()
+        model.train_batch()
 
         # generate batch / select words to predict
         x, lengths, positions, langs, _ = self.generate_batch(lang1, lang2, 'pred')
@@ -739,7 +739,7 @@ class Trainer(object):
         params = self.params
         name = 'model' if params.encoder_only else 'encoder'
         model = getattr(self, name)
-        model.train()
+        model.train_batch()
 
         lang1_id = params.lang2id[lang1]
         lang2_id = params.lang2id[lang2]
@@ -822,8 +822,8 @@ class EncDecTrainer(Trainer):
         if lambda_coeff == 0:
             return
         params = self.params
-        self.encoder.train()
-        self.decoder.train()
+        self.encoder.train_batch()
+        self.decoder.train_batch()
 
         lang1_id = params.lang2id[lang1]
         lang2_id = params.lang2id[lang2]
@@ -906,8 +906,8 @@ class EncDecTrainer(Trainer):
             del enc1
 
             # training mode
-            self.encoder.train()
-            self.decoder.train()
+            self.encoder.train_batch()
+            self.decoder.train_batch()
 
         # encode generate sentence
         enc2 = self.encoder('fwd', x=x2, lengths=len2, langs=langs2, causal=False)
