@@ -86,8 +86,8 @@ class framework():
     def run_eval(self):
         for idx, (word_ids, lengths, langs) in enumerate(self.dataset()):
             tensor = self.model('polysemy', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
-            print(tensor.size())
-
+            if idx % 100 == 0:
+                print(idx, tensor.size())
 
     def run_infer(self, data):
         pass
@@ -98,6 +98,7 @@ class yield_test():
         x = 10
         for i in range(x, 100):
             yield i
+
 
 if __name__ == '__main__':
     a = yield_test()
