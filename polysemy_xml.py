@@ -58,6 +58,7 @@ def load_model_xml(reloaded):
     model = TransformerModel(params, params['dico'], True, True)
     model = check_gpu(model)
 
+    # todo frozen param conditional
     framework.load_model_params(model=model, model_params_from_file=reloaded['model'])
     # model.load_state_dict(torch.load(
     #     params["reload_model"],
@@ -68,9 +69,21 @@ def load_model_xml(reloaded):
 
 
 class data_stream():
-    def __init__(self, params):
+    def __init__(self, params, data_set):
         self.corpus_df = pd.read_csv(os.path.join(data_path, 'SemEval2021_Task2_corpus.csv'), sep='\001',
                                      encoding='utf-8')
+        self.data_set = data_set
+        if self.data_set == 'train':
+            self.corpus_df = self.corpus_df[
+                (self.corpus_df['data_set'] == 'training') | (self.corpus_df['data_set'] == 'dev')]
+        elif self.data_set == 'eval':
+            self.corpus_df = self.corpus_df[self.corpus_df['data_set'] == 'trial']
+        elif self.data_set == 'predict':
+            self.corpus_df = self.corpus_df[self.corpus_df['data_set'] == 'test']
+        else:
+            print('Invalid data_set: {}'.format(data_set))
+            return None
+
         # todo shuffle
         self.params = params
         self.batch_size = batch_size
@@ -84,32 +97,28 @@ class data_stream():
             corpus_df_batch = self.corpus_df[:self.batch_size]
             self.corpus_df = self.corpus_df[self.batch_size:]
 
+            label = corpus_df_batch['label'].tolist()
+            try:
+                label = torch.tensor(label, dtype=torch.long)
+            except:
+                pass
+            label = check_gpu(label)
+
             sent1_bpe = corpus_df_batch['sent1_bpe'].to_list()
             sent2_bpe = corpus_df_batch['sent2_bpe'].to_list()
-            # sentences = []
-            # for s_1, s_2 in zip(sent1_bpe, sent2_bpe):
-            #     sentences.append(s_1)
-            #     sentences.append(s_2)
 
             key_word_idxs_1 = corpus_df_batch['sent1_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
             key_word_idxs_1 = [[int(idx) for idx in idx_list] for idx_list in key_word_idxs_1]
             key_word_idxs_2 = corpus_df_batch['sent2_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
             key_word_idxs_2 = [[int(idx) for idx in idx_list] for idx_list in key_word_idxs_2]
 
-            # key_word_idxs = []
-            # for idx_1, idx_2 in zip(key_word_idxs_1, key_word_idxs_2):
-            #     key_word_idxs.append([int(idx) for idx in idx_1])
-            #     key_word_idxs.append([int(idx) for idx in idx_2])
-
-            # word_ids, lengths, langs = generate_model_input(sentences, params, params['dico'])
             word_ids_1, lengths_1, langs_1 = generate_model_input(sent1_bpe, params, params['dico'])
             word_ids_2, lengths_2, langs_2 = generate_model_input(sent2_bpe, params, params['dico'])
             if c_batch % 100 == 0:
                 print("corpus: {}: {}".format(
                     self.batch_size * c_batch,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-            # tensor_one_batch = infer_one_batch(one_batch_input, para, model_xml)
-            yield (word_ids_1, lengths_1, langs_1, key_word_idxs_1), (word_ids_2, lengths_2, langs_2, key_word_idxs_2)
+            yield ((word_ids_1, lengths_1, langs_1, key_word_idxs_1), (word_ids_2, lengths_2, langs_2, key_word_idxs_2)), label
 
 
 def generate_model_input(sentences, params, dico):
@@ -156,6 +165,7 @@ if __name__ == '__main__':
 
     polysemt_xml_model = framework.framework(params=params, model=model, data_stream=data_stream, optimizer=optimizer,
                                              loss_func=loss_func, USE_CUDA=USE_CUDA)
-    polysemt_xml_model.run_eval()
+    # polysemt_xml_model.run_eval()
+    polysemt_xml_model.run_train()
 
     print('END')

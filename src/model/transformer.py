@@ -330,6 +330,8 @@ class TransformerModel(nn.Module):
             return self.predict(**kwargs)
         elif mode == 'polysemy':
             return self.polysemy(**kwargs)
+        elif mode == 'polysemy_predict':
+            return self.polysemy_predict(**kwargs)
         else:
             raise Exception("Unknown mode: %s" % mode)
 
@@ -366,8 +368,11 @@ class TransformerModel(nn.Module):
         feature_tensor_batch_2 = get_feature_tensor(tensor_sent2, key_word_idxs_2)
         tensor = torch.cat((feature_tensor_batch_1, feature_tensor_batch_2), dim=1)
 
-        result = F.softmax(self.polysemy_dense(tensor), dim=-1)
+        return tensor
 
+    def polysemy_predict(self, x):
+        tensor = self.polysemy(x)
+        result = F.softmax(self.polysemy_dense(tensor), dim=-1)
         return result
 
     def fwd(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):

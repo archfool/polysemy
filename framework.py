@@ -48,30 +48,31 @@ class framework():
             # train_batch phrase
             self.model.train()
             iter_i = 0
-            for iter_i, data_train in enumerate(self.data_stream(self.params)(), self.iter_count + 1):
+            for iter_i, data_train in enumerate(self.data_stream(self.params, data_set='train')(), self.iter_count + 1):
                 self.run_train_batch(data_train)
             self.iter_count += iter_i
 
             # eval phrase
             self.model.eval()
-            self.model.run_eval()
+            # self.model.run_eval()
 
     def run_train_batch(self, data):
-        batch_input, batch_target = data
-        input_var = batch_input
-        target_var = batch_target
-        if self.USE_CUDA:
-            input_var = input_var.cuda()
-            target_var = target_var.cuda()
+        input_batch, target_batch = data
+        input_var = input_batch
+        target_var = target_batch
+        # if self.USE_CUDA:
+        #     input_var = input_var.cuda()
+        #     target_var = target_var.cuda()
 
         # 每一次前馈就是一次函数闭包操作
         def closure():
-            batch_output = self.model(input_var)
-            loss = self.loss_func(batch_output, target_var)
+            output_batch = self.model('polysemy_predict', x=input_batch)
+            loss = self.loss_func(output_batch, target_batch)
             # loss.backward() computes dloss/dx for every parameter x which has requires_grad=True. x.grad += dloss/dx
             loss.backward()
             # 梯度裁剪 max_norm = 1~10
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
+            print("loss: {}".format(loss))
             return loss
 
         # optimizer.zero_grad() clears x.grad for every parameter x in the optimizer.
@@ -80,37 +81,10 @@ class framework():
         self.optimizer.step(closure)
 
     def run_eval(self):
-        for idx, data_batch in enumerate(self.data_stream(self.params)()):
-            tensor = self.model('polysemy', x=data_batch).contiguous()
-            # print(tensor.size())
-            # tensor = self.model('polysemy', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
-            # tensor_sent1 = self.model('polysemy', x=word_ids_1, lengths=lengths_1, langs=langs_1, causal=False) \
-            #     .contiguous()
-            # tensor_sent2 = self.model('polysemy', x=word_ids_2, lengths=lengths_2, langs=langs_2, causal=False) \
-            #     .contiguous()
-
-            # feature_tensor_batch = torch.tensor([]).cuda() if self.USE_CUDA else torch.tensor([])
-            # for i, key_word in enumerate(key_word_idxs):
-            #     tensor_single = tensor[:, i, :]
-            #     index = torch.tensor(key_word, dtype=torch.long, device='cuda' if self.USE_CUDA else 'cpu') \
-            #         .unsqueeze(1).expand([-1, tensor_single.size()[1]])
-            #     key_word_tensor = torch.gather(tensor_single, dim=0,
-            #                                    index=index)
-            #     key_word_tensor_max_pooling = torch.max(key_word_tensor, dim=0).values
-            #     key_word_tensor_avg_pooling = torch.mean(key_word_tensor, dim=0)
-            #     sent_tensor = tensor_single[0, :]
-            #     feature_tensor_single = torch.cat((key_word_tensor_max_pooling,
-            #                                        key_word_tensor_avg_pooling,
-            #                                        sent_tensor),
-            #                                       dim=0)
-            #     if i % 2 == 0:
-            #         sent1_feature_tensor_single = feature_tensor_single
-            #     else:
-            #         sent_couple_feature_tensor_single = torch.cat(
-            #             (sent1_feature_tensor_single, feature_tensor_single),
-            #             dim=0).reshape([1, -1])
-            #         feature_tensor_batch = torch.cat((feature_tensor_batch, sent_couple_feature_tensor_single),
-            #                                          dim=0)
+        for idx, data_batch in enumerate(self.data_stream(self.params, data_set='eval')()):
+            input_batch, target_batch = data_batch
+            # todo replace 'polysemy' with self.params['sub_model_name']['eval']
+            tensor = self.model('polysemy_predict', x=input_batch).contiguous()
 
     def run_infer(self, data):
         pass
