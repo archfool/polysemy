@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class framework(object):
+class framework():
 
     def __init__(self, params=None, model=None, dataset=None, optimizer=None, loss_func=None, USE_CUDA=True):
         self.params = params
@@ -22,15 +22,18 @@ class framework(object):
         self.iter_count = 0
 
         # todo
-        total_params = sum(p.numel() for p in model.parameters())
-        print("%s" % model)
+        total_params = sum(p.numel() for p in self.model.parameters())
+        # print("%s" % model)
         print("Total Model Params:%s" % total_params)
+
+    def __call__(self, *args, **kwargs):
+        pass
 
     def build_optimizer(self):
         # optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
         # optimizer = optim.SGD(self.model.parameters(), lr=0.01)
         # optimizer = optim.Adam(self.model.parameters())
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=0.01)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=0.01)
         return optimizer
 
     def build_loss_func(self):
@@ -42,7 +45,7 @@ class framework(object):
         # epoch
         for epoch_i in range(1, epochs + 1):
             # train_batch phrase
-            self.model.train_batch()
+            self.model.train()
             # 从dataloader 中拿数据
             iter_i = 0
             for iter_i, data_train in enumerate(self.dataset, self.iter_count + 1):
@@ -50,7 +53,8 @@ class framework(object):
             self.iter_count += iter_i
 
             # eval phrase
-            self.model.run_eval(data_eval)
+            # self.model.eval()
+            # self.model.run_eval(data_eval)
 
     def run_train_batch(self, data):
         batch_input, batch_target = data
@@ -79,8 +83,11 @@ class framework(object):
         # x += -lr * x.grad
         self.optimizer.step(closure)
 
-    def run_eval(self, data):
-        pass
+    def run_eval(self):
+        for idx, (word_ids, lengths, langs) in enumerate(self.dataset()):
+            tensor = self.model('polysemy', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
+            print(tensor.size())
+
 
     def run_infer(self, data):
         pass
