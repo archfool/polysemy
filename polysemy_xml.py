@@ -104,7 +104,7 @@ class data_stream():
             # word_ids, lengths, langs = generate_model_input(sentences, params, params['dico'])
             word_ids_1, lengths_1, langs_1 = generate_model_input(sent1_bpe, params, params['dico'])
             word_ids_2, lengths_2, langs_2 = generate_model_input(sent2_bpe, params, params['dico'])
-            if c_batch % 1 == 0:
+            if c_batch % 100 == 0:
                 print("corpus: {}: {}".format(
                     self.batch_size * c_batch,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))

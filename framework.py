@@ -82,7 +82,7 @@ class framework():
     def run_eval(self):
         for idx, data_batch in enumerate(self.data_stream(self.params)()):
             tensor = self.model('polysemy', x=data_batch).contiguous()
-            print(tensor.size())
+            # print(tensor.size())
             # tensor = self.model('polysemy', x=word_ids, lengths=lengths, langs=langs, causal=False).contiguous()
             # tensor_sent1 = self.model('polysemy', x=word_ids_1, lengths=lengths_1, langs=langs_1, causal=False) \
             #     .contiguous()
