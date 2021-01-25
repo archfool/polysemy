@@ -110,7 +110,7 @@ def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
             
             loss = loss / accumulate_steps
             loss.backward()
-            # todo
+            # todo 1~10
             torch.nn.utils.clip_grad_norm_(model.parameters(), 
                                            params["grad_clip"])
            

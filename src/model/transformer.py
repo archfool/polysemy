@@ -332,8 +332,39 @@ class TransformerModel(nn.Module):
             raise Exception("Unknown mode: %s" % mode)
 
 
-    def polysemy(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):
-        tensor = self.fwd(x, lengths, causal, src_enc, src_len, positions, langs, cache)
+    def polysemy(self, x):
+        data_sent1, data_sent2 = x
+        word_ids_1, lengths_1, langs_1, key_word_idxs_1 = data_sent1
+        word_ids_2, lengths_2, langs_2, key_word_idxs_2 = data_sent2
+
+        tensor_sent1 = self.fwd(x=word_ids_1, lengths=lengths_1, langs=langs_1, causal=False)
+        tensor_sent2 = self.fwd(x=word_ids_2, lengths=lengths_2, langs=langs_2, causal=False)
+
+        def get_feature_tensor(tensor_sent, key_word_idxs):
+            if torch.cuda.is_available():
+                feature_tensor_batch = torch.tensor([], device='cuda')
+            else:
+                feature_tensor_batch = torch.tensor([], device='cpu')
+            for i, key_word in enumerate(key_word_idxs):
+                tensor_single = tensor_sent[:, i, :]
+                index = torch.tensor(key_word, dtype=torch.long).unsqueeze(1).expand([-1, tensor_single.size()[1]])
+                if torch.cuda.is_available():
+                    index = index.cuda()
+                key_word_tensor = torch.gather(tensor_single, dim=0, index=index)
+                key_word_tensor_max_pooling = torch.max(key_word_tensor, dim=0).values
+                key_word_tensor_avg_pooling = torch.mean(key_word_tensor, dim=0)
+                sent_tensor = tensor_single[0, :]
+                feature_tensor_single = torch.cat((key_word_tensor_max_pooling,
+                                                   key_word_tensor_avg_pooling,
+                                                   sent_tensor),
+                                                  dim=0)
+                # todo 初始化时分配空间
+                feature_tensor_batch = torch.cat((feature_tensor_batch, feature_tensor_single), dim=0)
+                return feature_tensor_batch
+
+        feature_tensor_batch_1 = get_feature_tensor(tensor_sent1, key_word_idxs_1)
+        feature_tensor_batch_2 = get_feature_tensor(tensor_sent2, key_word_idxs_2)
+        tensor = torch.cat((feature_tensor_batch_1, feature_tensor_batch_2), dim=1)
 
         return tensor
 
