@@ -8,6 +8,8 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 
+from init_config import logger
+
 
 class framework():
 
@@ -21,10 +23,11 @@ class framework():
         self.eval_func = eval_func
         self.USE_CUDA = USE_CUDA
         self.iter_count = 0
+        self.loss
 
         # total_params = sum(p.numel() for p in self.model.parameters())/pow(2,20)
-        total_storage_space = sum(p.numel()*int(str(p.dtype)[-2:])/8 for p in self.model.parameters())/pow(2,20)
-        print("Total Model Storage Space: {:.0f} MB".format(total_storage_space))
+        total_storage_space = sum(p.numel() * int(str(p.dtype)[-2:]) / 8 for p in self.model.parameters()) / pow(2, 20)
+        logger.info("Total Model Storage Space: {:.0f} MB".format(total_storage_space))
 
     def __call__(self, *args, **kwargs):
         pass
@@ -49,6 +52,8 @@ class framework():
             iter_i = 0
             for iter_i, data_train in enumerate(self.data_stream(self.params, data_set='train')(), self.iter_count + 1):
                 self.run_train_batch(data_train)
+                if self.iter_count + iter_i % 100 == 0:
+                    logger.info("step:{} loss: {}".format(self.iter_count + iter_i, self.loss))
             self.iter_count += iter_i
 
             # eval phrase
@@ -59,6 +64,7 @@ class framework():
         input_batch, target_batch = data
         input_var = input_batch
         target_var = target_batch
+
         # if self.USE_CUDA:
         #     input_var = input_var.cuda()
         #     target_var = target_var.cuda()
@@ -67,11 +73,11 @@ class framework():
         def closure():
             output_batch = self.model('polysemy_predict', x=input_batch)
             loss = self.loss_func(output_batch, target_batch)
+            self.loss = loss
             # loss.backward() computes dloss/dx for every parameter x which has requires_grad=True. x.grad += dloss/dx
             loss.backward()
             # 梯度裁剪 max_norm = 1~10
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
-            print("loss: {}".format(loss))
             return loss
 
         # optimizer.zero_grad() clears x.grad for every parameter x in the optimizer.
@@ -97,16 +103,16 @@ def load_model_params(model, model_params_from_file, frozen=None):
             if frozen is not None:
                 param_tmp.requires_grad = not frozen
             model_params[para_name] = param_tmp
-            print("[{}]{}{}[{}] **INIT FROM SAVED MODEL FILE**".format(
-                'Not Frozon' if param_tmp.requires_grad else 'Frozon',
+            logger.info("[{}]{}{}[{}] **INIT FROM SAVED MODEL FILE**".format(
+                'Not Frozen' if param_tmp.requires_grad else 'Frozen',
                 para_name,
                 list(para_value.size()),
                 str(para_value.dtype).split(".")[-1],
             ))
         else:
             param_tmp = para_value
-            print("[{}]{}{}[{}]".format(
-                'Not Frozon' if param_tmp.requires_grad else 'Frozon',
+            logger.info("[{}]{}{}[{}]".format(
+                'Not Frozen' if param_tmp.requires_grad else 'Frozen',
                 para_name,
                 list(para_value.size()),
                 str(para_value.dtype).split(".")[-1],
@@ -115,15 +121,14 @@ def load_model_params(model, model_params_from_file, frozen=None):
 
 
 if torch.cuda.is_available():
-    print("USE GPU")
+    logger.info("USE GPU")
     GPU_OR_CPU = 'cuda'
 else:
-    print("USE CPU")
+    logger.info("USE CPU")
     GPU_OR_CPU = 'cpu'
 
-
 if __name__ == '__main__':
-    print("END")
+    logger.info("END")
 
 # b = torch.from_numpy(a)
 # feature_tensor_single.detach().numpy()

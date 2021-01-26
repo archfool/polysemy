@@ -57,7 +57,6 @@ def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
                 False)
         logger.info("Reload model complete!")
         
-        # todo params["reload_model"] is the model_file_path
         opti_path = params["reload_model"] + ".optimizer"
         if os.path.exists(opti_path):
             optimizer.load_state_dict(torch.load(
@@ -110,8 +109,7 @@ def train(params, model_fn, generator_fn, loss_fn, eval_fn=None):
             
             loss = loss / accumulate_steps
             loss.backward()
-            # todo 1~10
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 
+            torch.nn.utils.clip_grad_norm_(model.parameters(),
                                            params["grad_clip"])
            
             if total_steps % accumulate_steps == 0:

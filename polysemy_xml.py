@@ -24,7 +24,7 @@ import framework
 if root_path.startswith("/media"):
     batch_size = 8
 else:
-    batch_size = 4
+    batch_size = 1
 
 
 def reload_model(model_path):
@@ -40,7 +40,7 @@ def reload_model(model_path):
 def load_model_xml(reloaded):
     # extract para
     params = AttrDict(reloaded['params'])
-    print("Supported languages: %s" % ", ".join(params.lang2id.keys()))
+    logger.info("Supported languages: %s" % ", ".join(params.lang2id.keys()))
 
     # build dictionary
     dico = dictionary.Dictionary(reloaded['dico_id2word'], reloaded['dico_word2id'], reloaded['dico_counts'])
@@ -80,7 +80,7 @@ class data_stream():
         elif self.data_set == 'predict':
             self.corpus_df = self.corpus_df[self.corpus_df['data_set'] == 'test']
         else:
-            print('Invalid data_set: {}'.format(data_set))
+            logger.info('Invalid data_set: {}'.format(data_set))
             return None
 
         # do shuffle
@@ -90,7 +90,7 @@ class data_stream():
         self.batch_size = batch_size
 
         self.n_corpus = len(self.corpus_df)
-        print("data num : {}".format(self.n_corpus))
+        logger.info("data num : {}".format(self.n_corpus))
 
     def __call__(self):
         for i in range(math.ceil(self.n_corpus / self.batch_size)):
@@ -116,7 +116,7 @@ class data_stream():
             word_ids_1, lengths_1, langs_1 = generate_model_input(sent1_bpe, params, params['dico'])
             word_ids_2, lengths_2, langs_2 = generate_model_input(sent2_bpe, params, params['dico'])
             if c_batch % 100 == 0:
-                print("corpus: {}: {}".format(
+                logger.info("corpus: {}: {}".format(
                     self.batch_size * c_batch,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
             yield ((word_ids_1, lengths_1, langs_1, key_word_idxs_1), (word_ids_2, lengths_2, langs_2, key_word_idxs_2)), label
@@ -126,7 +126,7 @@ def generate_model_input(sentences, params, dico):
     # check how many tokens are OOV
     # n_w = len([w for w in ' '.join(sentences).split()])
     # n_oov = len([w for w in ' '.join(sentences).split() if w not in dico.word2id])
-    # print('Number of out-of-vocab words: %s/%s' % (n_oov, n_w))
+    # logger.info('Number of out-of-vocab words: %s/%s' % (n_oov, n_w))
 
     # todo 关键词位置大于128的，截断
 
@@ -136,7 +136,7 @@ def generate_model_input(sentences, params, dico):
     # Create batch
     bs = len(sentences)
     slen = max([len(sent) for sent in sentences])
-    # print("max seq len: {}".format(slen))
+    # logger.info("max seq len: {}".format(slen))
 
     word_ids = torch.LongTensor(slen, bs).fill_(params.pad_index)
     for i in range(len(sentences)):
@@ -169,4 +169,5 @@ if __name__ == '__main__':
     # polysemt_xml_model.run_eval()
     polysemt_xml_model.run_train()
 
-    print('END')
+    torch.cuda.empty_cache()
+    logger.info('END')
