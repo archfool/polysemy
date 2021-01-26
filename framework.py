@@ -23,7 +23,7 @@ class framework():
         self.eval_func = eval_func
         self.USE_CUDA = USE_CUDA
         self.iter_count = 0
-        self.loss
+        self.loss = 0
 
         # total_params = sum(p.numel() for p in self.model.parameters())/pow(2,20)
         total_storage_space = sum(p.numel() * int(str(p.dtype)[-2:]) / 8 for p in self.model.parameters()) / pow(2, 20)
@@ -52,8 +52,8 @@ class framework():
             iter_i = 0
             for iter_i, data_train in enumerate(self.data_stream(self.params, data_set='train')(), self.iter_count + 1):
                 self.run_train_batch(data_train)
-                if self.iter_count + iter_i % 100 == 0:
-                    logger.info("step:{} loss: {}".format(self.iter_count + iter_i, self.loss))
+                if (self.iter_count + iter_i) % 100 == 0:
+                    logger.info("step:{} loss: {:.4f}".format(self.iter_count + iter_i, self.loss))
             self.iter_count += iter_i
 
             # eval phrase
@@ -84,6 +84,7 @@ class framework():
         self.optimizer.zero_grad()
         # optimizer.step updates the value of x using the gradient x.grad. For example of SGD : x += -lr * x.grad
         self.optimizer.step(closure)
+        # loss.backward()和self.optimizer.step(closure)在原有模型空间的基础上，各增加50%的显存
 
     def run_eval(self):
         for idx, data_batch in enumerate(self.data_stream(self.params, data_set='eval')()):
@@ -103,20 +104,20 @@ def load_model_params(model, model_params_from_file, frozen=None):
             if frozen is not None:
                 param_tmp.requires_grad = not frozen
             model_params[para_name] = param_tmp
-            logger.info("[{}]{}{}[{}] **INIT FROM SAVED MODEL FILE**".format(
-                'Not Frozen' if param_tmp.requires_grad else 'Frozen',
-                para_name,
-                list(para_value.size()),
-                str(para_value.dtype).split(".")[-1],
-            ))
+            # logger.info("[{}]{}{}[{}] **INIT FROM SAVED MODEL FILE**".format(
+            #     'Not Frozen' if param_tmp.requires_grad else 'Frozen',
+            #     para_name,
+            #     list(para_value.size()),
+            #     str(para_value.dtype).split(".")[-1],
+            # ))
         else:
             param_tmp = para_value
-            logger.info("[{}]{}{}[{}]".format(
-                'Not Frozen' if param_tmp.requires_grad else 'Frozen',
-                para_name,
-                list(para_value.size()),
-                str(para_value.dtype).split(".")[-1],
-            ))
+            # logger.info("[{}]{}{}[{}]".format(
+            #     'Not Frozen' if param_tmp.requires_grad else 'Frozen',
+            #     para_name,
+            #     list(para_value.size()),
+            #     str(para_value.dtype).split(".")[-1],
+            # ))
     model.load_state_dict(model_params, strict=False)
 
 

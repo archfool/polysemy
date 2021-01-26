@@ -22,7 +22,7 @@ from framework_tools import print_fun_time, check_gpu
 import framework
 
 if root_path.startswith("/media"):
-    batch_size = 8
+    batch_size = 16
 else:
     batch_size = 1
 
@@ -81,7 +81,6 @@ class data_stream():
             self.corpus_df = self.corpus_df[self.corpus_df['data_set'] == 'test']
         else:
             logger.info('Invalid data_set: {}'.format(data_set))
-            return None
 
         # do shuffle
         self.corpus_df = self.corpus_df.sample(frac=1).reset_index(drop=True)
@@ -100,6 +99,7 @@ class data_stream():
 
             label = corpus_df_batch['label'].tolist()
             try:
+                label = [int(x) for x in label]
                 label = torch.tensor(label, dtype=torch.long)
             except:
                 pass
@@ -115,10 +115,10 @@ class data_stream():
 
             word_ids_1, lengths_1, langs_1 = generate_model_input(sent1_bpe, params, params['dico'])
             word_ids_2, lengths_2, langs_2 = generate_model_input(sent2_bpe, params, params['dico'])
-            if c_batch % 100 == 0:
-                logger.info("corpus: {}: {}".format(
-                    self.batch_size * c_batch,
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+            # if c_batch % 100 == 0:
+            #     logger.info("corpus: {}: {}".format(
+            #         self.batch_size * c_batch,
+            #         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
             yield ((word_ids_1, lengths_1, langs_1, key_word_idxs_1), (word_ids_2, lengths_2, langs_2, key_word_idxs_2)), label
 
 
@@ -160,14 +160,14 @@ if __name__ == '__main__':
     reloaded = reload_model(model_path)
 
     model, params = load_model_xml(reloaded)
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=0.01)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=0.001)
     loss_func = nn.CrossEntropyLoss()
     USE_CUDA = True if torch.cuda.is_available() else False
 
     polysemt_xml_model = framework.framework(params=params, model=model, data_stream=data_stream, optimizer=optimizer,
                                              loss_func=loss_func, USE_CUDA=USE_CUDA)
-    # polysemt_xml_model.run_eval()
-    polysemt_xml_model.run_train(epochs=30)
+    polysemt_xml_model.run_eval()
+    # polysemt_xml_model.run_train(epochs=30)
 
     torch.cuda.empty_cache()
     logger.info('END')
