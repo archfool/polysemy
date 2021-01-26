@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import math
 import time
+import torch
 
 from src.utils import AttrDict
 from src.data import dictionary
@@ -29,7 +30,6 @@ else:
 def reload_model(model_path):
     # Reload a pretrained model
     reloaded = torch.load(model_path, map_location=torch.device('cpu'))
-    # todo
     # model.load_state_dict(torch.load(
     #     params["reload_model"],
     #     map_location=lambda storage, loc: storage),
@@ -58,8 +58,7 @@ def load_model_xml(reloaded):
     model = TransformerModel(params, params['dico'], True, True)
     model = check_gpu(model)
 
-    # todo frozen param conditional
-    framework.load_model_params(model=model, model_params_from_file=reloaded['model'])
+    framework.load_model_params(model=model, model_params_from_file=reloaded['model'], frozen=True)
     # model.load_state_dict(torch.load(
     #     params["reload_model"],
     #     map_location=lambda storage, loc: storage),
@@ -84,7 +83,9 @@ class data_stream():
             print('Invalid data_set: {}'.format(data_set))
             return None
 
-        # todo shuffle
+        # do shuffle
+        self.corpus_df = self.corpus_df.sample(frac=1).reset_index(drop=True)
+
         self.params = params
         self.batch_size = batch_size
 

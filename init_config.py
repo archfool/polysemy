@@ -1,5 +1,4 @@
 import os
-import torch
 
 if os.path.exists(u'c:\\'):
     root_path = u'E:\\'
@@ -18,12 +17,6 @@ src_xml_path = os.path.join(src_root_path, 'XLM')
 model_xml_path = os.path.join(data_root_path, 'XLM', 'mlm_17_1280')
 task_corpus_path = os.path.join(data_root_path, 'SemEval2021', 'task 2', 'ver2')
 
-if torch.cuda.is_available():
-    print("USE GPU")
-    GPU_OR_CPU = 'cuda'
-else:
-    print("USE CPU")
-    GPU_OR_CPU = 'cpu'
 
 # print(tensor.device)
 # print(torch.cuda.device_count())

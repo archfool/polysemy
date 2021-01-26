@@ -22,10 +22,9 @@ class framework():
         self.USE_CUDA = USE_CUDA
         self.iter_count = 0
 
-        # todo 加上每参数的大小权重信息
-        total_params = sum(p.numel() for p in self.model.parameters())
-        # print("%s" % model)
-        print("Total Model Params:%s" % total_params)
+        # total_params = sum(p.numel() for p in self.model.parameters())/pow(2,20)
+        total_storage_space = sum(p.numel()*int(str(p.dtype)[-2:])/8 for p in self.model.parameters())/pow(2,20)
+        print("Total Model Storage Space: {:.0f} MB".format(total_storage_space))
 
     def __call__(self, *args, **kwargs):
         pass
@@ -90,17 +89,37 @@ class framework():
         pass
 
 
-def load_model_params(model, model_params_from_file):
+def load_model_params(model, model_params_from_file, frozen=None):
     model_params = {}
-    # model_params_old = [x for x in model.named_parameters()]
     for para_name, para_value in model.named_parameters():
         if para_name in model_params_from_file:
-            model_params[para_name] = model_params_from_file[para_name]
-            print("{}: {}: {} **INIT FROM SAVED MODEL FILE**".format(para_name, para_value.size(), para_value.dtype))
+            param_tmp = model_params_from_file[para_name]
+            if frozen is not None:
+                param_tmp.requires_grad = not frozen
+            model_params[para_name] = param_tmp
+            print("[{}]{}{}[{}] **INIT FROM SAVED MODEL FILE**".format(
+                'Not Frozon' if param_tmp.requires_grad else 'Frozon',
+                para_name,
+                list(para_value.size()),
+                str(para_value.dtype).split(".")[-1],
+            ))
         else:
-            print("{}: {}: {}".format(para_name, para_value.size(), para_value.dtype))
+            param_tmp = para_value
+            print("[{}]{}{}[{}]".format(
+                'Not Frozon' if param_tmp.requires_grad else 'Frozon',
+                para_name,
+                list(para_value.size()),
+                str(para_value.dtype).split(".")[-1],
+            ))
     model.load_state_dict(model_params, strict=False)
-    # model_params_new = [x for x in model.named_parameters()]
+
+
+if torch.cuda.is_available():
+    print("USE GPU")
+    GPU_OR_CPU = 'cuda'
+else:
+    print("USE CPU")
+    GPU_OR_CPU = 'cpu'
 
 
 if __name__ == '__main__':
