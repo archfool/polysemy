@@ -12,19 +12,19 @@ import math
 import time
 import torch
 
-from src.utils import AttrDict
-from src.data import dictionary
-from src.model.transformer import TransformerModel
+from src_xml.utils import AttrDict
+from src_xml.data import dictionary
+from src_xml.model.transformer import TransformerModel
 
 from init_config import *
-from framework_tools import print_fun_time, check_gpu
+from util_tools import print_fun_time, logger
 
 import framework
 
 if root_path.startswith("/media"):
     batch_size = 16
 else:
-    batch_size = 1
+    batch_size = 8
 
 
 def reload_model(model_path):
@@ -56,7 +56,7 @@ def load_model_xml(reloaded):
 
     # build model / reload weights
     model = TransformerModel(params, params['dico'], True, True)
-    model = check_gpu(model)
+    model = framework.check_gpu(model)
 
     framework.load_model_params(model=model, model_params_from_file=reloaded['model'], frozen=True)
     # model.load_state_dict(torch.load(
@@ -83,7 +83,8 @@ class data_stream():
             logger.info('Invalid data_set: {}'.format(data_set))
 
         # do shuffle
-        self.corpus_df = self.corpus_df.sample(frac=1).reset_index(drop=True)
+        if self.data_set == 'train':
+            self.corpus_df = self.corpus_df.sample(frac=1).reset_index(drop=True)
 
         self.params = params
         self.batch_size = batch_size
@@ -103,26 +104,31 @@ class data_stream():
                 label = torch.tensor(label, dtype=torch.long)
             except:
                 pass
-            label = check_gpu(label)
+            label = framework.check_gpu(label)
 
             sent1_bpe = corpus_df_batch['sent1_bpe'].to_list()
             sent2_bpe = corpus_df_batch['sent2_bpe'].to_list()
+
+            lang1 = corpus_df_batch['sent1_lang'].to_list()
+            lang2 = corpus_df_batch['sent2_lang'].to_list()
 
             key_word_idxs_1 = corpus_df_batch['sent1_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
             key_word_idxs_1 = [[int(idx) for idx in idx_list] for idx_list in key_word_idxs_1]
             key_word_idxs_2 = corpus_df_batch['sent2_bpe_keyword_idx'].apply(lambda x: x.split(' ')).to_list()
             key_word_idxs_2 = [[int(idx) for idx in idx_list] for idx_list in key_word_idxs_2]
-
-            word_ids_1, lengths_1, langs_1 = generate_model_input(sent1_bpe, params, params['dico'])
-            word_ids_2, lengths_2, langs_2 = generate_model_input(sent2_bpe, params, params['dico'])
+            word_ids_1, lengths_1, langs_1, positions_1 = generate_model_input(sent1_bpe, lang1, params, params['dico'])
+            word_ids_2, lengths_2, langs_2, positions_2 = generate_model_input(sent2_bpe, lang2, params, params['dico'])
             # if c_batch % 100 == 0:
             #     logger.info("corpus: {}: {}".format(
             #         self.batch_size * c_batch,
             #         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-            yield ((word_ids_1, lengths_1, langs_1, key_word_idxs_1), (word_ids_2, lengths_2, langs_2, key_word_idxs_2)), label
+            yield (
+                      (word_ids_1, lengths_1, langs_1, positions_1, key_word_idxs_1),
+                      (word_ids_2, lengths_2, langs_2, positions_2, key_word_idxs_2)
+                  ), label
 
 
-def generate_model_input(sentences, params, dico):
+def generate_model_input(sentences, lang, params, dico):
     # check how many tokens are OOV
     # n_w = len([w for w in ' '.join(sentences).split()])
     # n_oov = len([w for w in ' '.join(sentences).split() if w not in dico.word2id])
@@ -142,20 +148,29 @@ def generate_model_input(sentences, params, dico):
     for i in range(len(sentences)):
         sent = torch.LongTensor([dico.index(w) for w in sentences[i]])
         word_ids[:len(sent), i] = sent
-    word_ids = check_gpu(word_ids)
+    word_ids = framework.check_gpu(word_ids)
 
     lengths = torch.LongTensor([len(sent) for sent in sentences])
-    lengths = check_gpu(lengths)
+    lengths = framework.check_gpu(lengths)
 
     # NOTE: No more language id (removed it in a later version)
-    # langs = torch.LongTensor([params.lang2id[lang] for _, lang in sentences]).unsqueeze(0).expand(slen, bs) if params.n_langs > 1 else None
-    langs = None
+    # langs = torch.LongTensor([params.lang2id[lang] for _, lang in sentences]).unsqueeze(0).expand(slen, bs)
+    # langs = None
+    lang = [params.lang2id[l] for l in lang]
+    langs = torch.tensor(lang, dtype=torch.long).unsqueeze(0).expand([slen, bs])
+    langs = framework.check_gpu(langs)
 
-    return word_ids, lengths, langs
+    positions = torch.arange(slen)[:, None].repeat(1, bs)
+    positions = framework.check_gpu(positions)
+
+    return word_ids, lengths, langs, positions
 
 
 if __name__ == '__main__':
-    model_path = os.path.join(model_xml_path, u'mlm_17_1280.pth')
+    if model_xml_path.endswith("mlm_17_1280"):
+        model_path = os.path.join(model_xml_path, u'mlm_17_1280.pth')
+    elif model_xml_path.endswith("mlm_tlm_xnli15_1024"):
+        model_path = os.path.join(model_xml_path, u'mlm_tlm_xnli15_1024.pth')
 
     reloaded = reload_model(model_path)
 

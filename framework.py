@@ -8,7 +8,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-from init_config import logger
+from util_tools import logger
 
 
 class framework():
@@ -91,6 +91,8 @@ class framework():
             input_batch, target_batch = data_batch
             # todo replace 'polysemy' with self.params['sub_model_name']['eval']
             tensor = self.model('polysemy_predict', x=input_batch).contiguous()
+            tensor_tmp = torch.cat((target_batch.unsqueeze(1), tensor), dim=1)
+            logger.info('\n'+str(tensor_tmp.data))
 
     def run_infer(self, data):
         pass
@@ -104,21 +106,30 @@ def load_model_params(model, model_params_from_file, frozen=None):
             if frozen is not None:
                 param_tmp.requires_grad = not frozen
             model_params[para_name] = param_tmp
-            # logger.info("[{}]{}{}[{}] **INIT FROM SAVED MODEL FILE**".format(
-            #     'Not Frozen' if param_tmp.requires_grad else 'Frozen',
-            #     para_name,
-            #     list(para_value.size()),
-            #     str(para_value.dtype).split(".")[-1],
-            # ))
+            logger.info("[{}]{}{}[{}] **INIT_FROM_FILE**".format(
+                'Not Frozen' if param_tmp.requires_grad else 'Frozen',
+                para_name,
+                list(para_value.size()),
+                str(para_value.dtype).split(".")[-1],
+            ))
         else:
             param_tmp = para_value
-            # logger.info("[{}]{}{}[{}]".format(
-            #     'Not Frozen' if param_tmp.requires_grad else 'Frozen',
-            #     para_name,
-            #     list(para_value.size()),
-            #     str(para_value.dtype).split(".")[-1],
-            # ))
+            logger.info("[{}]{}{}[{}]".format(
+                'Not Frozen' if param_tmp.requires_grad else 'Frozen',
+                para_name,
+                list(para_value.size()),
+                str(para_value.dtype).split(".")[-1],
+            ))
     model.load_state_dict(model_params, strict=False)
+
+
+def check_gpu(x):
+    if x is None:
+        return None
+    elif torch.cuda.is_available():
+        return x.cuda()
+    else:
+        return x
 
 
 if torch.cuda.is_available():

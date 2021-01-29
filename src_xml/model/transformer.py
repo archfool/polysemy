@@ -317,7 +317,7 @@ class TransformerModel(nn.Module):
                 self.pred_layer.proj.weight = self.embeddings.weight
 
         # polysemy
-        self.polysemy_dense = nn.Linear(self.dim*6, 2)
+        self.polysemy_dense = nn.Linear(self.dim * 6, 2)
 
     def forward(self, mode, **kwargs):
         """
@@ -334,46 +334,6 @@ class TransformerModel(nn.Module):
             return self.polysemy_predict(**kwargs)
         else:
             raise Exception("Unknown mode: %s" % mode)
-
-    def polysemy(self, x):
-        data_sent1, data_sent2 = x
-        word_ids_1, lengths_1, langs_1, key_word_idxs_1 = data_sent1
-        word_ids_2, lengths_2, langs_2, key_word_idxs_2 = data_sent2
-
-        tensor_sent1 = self.fwd(x=word_ids_1, lengths=lengths_1, causal=False)
-        tensor_sent2 = self.fwd(x=word_ids_2, lengths=lengths_2, causal=False)
-
-        def get_feature_tensor(tensor_sent, key_word_idxs):
-            if torch.cuda.is_available():
-                feature_tensor_batch = torch.empty(tensor_sent.size()[1], tensor_sent.size()[2] * 3, device='cuda')
-            else:
-                feature_tensor_batch = torch.empty(tensor_sent.size()[1], tensor_sent.size()[2] * 3, device='cpu')
-            for i, key_word in enumerate(key_word_idxs):
-                tensor_single = tensor_sent[:, i, :]
-                index = torch.tensor(key_word, dtype=torch.long).unsqueeze(1).expand([-1, tensor_single.size()[1]])
-                if torch.cuda.is_available():
-                    index = index.cuda()
-                key_word_tensor = torch.gather(tensor_single, dim=0, index=index)
-                key_word_tensor_max_pooling = torch.max(key_word_tensor, dim=0).values
-                key_word_tensor_avg_pooling = torch.mean(key_word_tensor, dim=0)
-                sent_tensor = tensor_single[0, :]
-                feature_tensor_single = torch.cat((key_word_tensor_max_pooling,
-                                                   key_word_tensor_avg_pooling,
-                                                   sent_tensor),
-                                                  dim=0)
-                feature_tensor_batch[i, :] = feature_tensor_single
-            return feature_tensor_batch
-
-        feature_tensor_batch_1 = get_feature_tensor(tensor_sent1, key_word_idxs_1)
-        feature_tensor_batch_2 = get_feature_tensor(tensor_sent2, key_word_idxs_2)
-        tensor = torch.cat((feature_tensor_batch_1, feature_tensor_batch_2), dim=1)
-
-        return tensor
-
-    def polysemy_predict(self, x):
-        tensor = self.polysemy(x)
-        result = F.softmax(self.polysemy_dense(tensor), dim=-1)
-        return result
 
     def fwd(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):
         """
@@ -484,6 +444,82 @@ class TransformerModel(nn.Module):
         masked_tensor = tensor[pred_mask.unsqueeze(-1).expand_as(tensor)].view(-1, self.dim)
         scores, loss = self.pred_layer(masked_tensor, y, get_scores)
         return scores, loss
+
+    def polysemy(self, x):
+        data_sent1, data_sent2 = x
+        word_ids_1, lengths_1, langs_1, positions_1, key_word_idxs_1 = data_sent1
+        word_ids_2, lengths_2, langs_2, positions_2, key_word_idxs_2 = data_sent2
+
+        tensor_sent1 = self.fwd(x=word_ids_1, lengths=lengths_1, positions=positions_1, langs=langs_1, causal=False)
+        tensor_sent2 = self.fwd(x=word_ids_2, lengths=lengths_2, positions=positions_2, langs=langs_2, causal=False)
+
+        def cal_similarity(tensor_sent1_single, key_word_idx_1, tensor_sent2_single, key_word_idx_2):
+            if torch.cuda.is_available():
+                cos_sim_list = torch.empty(len(key_word_idx_1)*len(key_word_idx_2), device='cuda')
+            else:
+                cos_sim_list = torch.empty(len(key_word_idx_1)*len(key_word_idx_2), device='cpu')
+            count = 0
+            for id_1 in key_word_idx_1:
+                for id_2 in key_word_idx_2:
+                    id_1_tensor = torch.tensor(id_1, dtype=torch.long)\
+                        .unsqueeze(0).unsqueeze(1).expand([-1, tensor_sent1_single.size()[1]])
+                    id_2_tensor = torch.tensor(id_2, dtype=torch.long)\
+                        .unsqueeze(0).unsqueeze(1).expand([-1, tensor_sent2_single.size()[1]])
+                    if torch.cuda.is_available():
+                        id_1_tensor = id_1_tensor.cuda()
+                        id_2_tensor = id_2_tensor.cuda()
+                    key_word_tensor_1 = torch.gather(tensor_sent1_single, dim=0, index=id_1_tensor)
+                    key_word_tensor_2 = torch.gather(tensor_sent2_single, dim=0, index=id_2_tensor)
+                    cos_sim_list[count] = torch.cosine_similarity(key_word_tensor_1, key_word_tensor_2, dim=1)
+                    count += 1
+            cos_sim = torch.cat((torch.max(cos_sim_list).reshape([1,1]),torch.mean(cos_sim_list).reshape([1,1])), dim=1)
+            return cos_sim
+
+        if torch.cuda.is_available():
+            cos_sim_batch = torch.empty(tensor_sent1.size()[1], 2, device='cuda')
+        else:
+            cos_sim_batch = torch.empty(tensor_sent1.size()[1], 2, device='cpu')
+        for i, (key_word_idx_1, key_word_idx_2) in enumerate(zip(key_word_idxs_1, key_word_idxs_2)):
+            cos_sim = cal_similarity(tensor_sent1[:, i, :], key_word_idx_1, tensor_sent2[:, i, :], key_word_idx_2)
+            cos_sim_batch[i, :] = cos_sim
+
+        def get_feature_tensor(tensor_sent, key_word_idxs):
+            if torch.cuda.is_available():
+                feature_tensor_batch = torch.empty(tensor_sent.size()[1], 2, tensor_sent.size()[2], device='cuda')
+            else:
+                feature_tensor_batch = torch.empty(tensor_sent.size()[1], 2, tensor_sent.size()[2], device='cpu')
+            for i, key_word in enumerate(key_word_idxs):
+                tensor_single = tensor_sent[:, i, :]
+                index = torch.tensor(key_word, dtype=torch.long).unsqueeze(1).expand([-1, tensor_single.size()[1]])
+                if torch.cuda.is_available():
+                    index = index.cuda()
+                key_word_tensor = torch.gather(tensor_single, dim=0, index=index)
+                key_word_tensor_avg_pooling = torch.mean(key_word_tensor, dim=0)
+                key_word_tensor_max_pooling = torch.max(key_word_tensor, dim=0).values
+                # sent_tensor = tensor_single[0, :]
+                # feature_tensor_single = torch.cat((key_word_tensor_max_pooling,
+                #                                    key_word_tensor_avg_pooling,
+                #                                    sent_tensor
+                #                                    ), dim=0)
+                feature_tensor_batch[i, 0, :] = key_word_tensor_avg_pooling
+                feature_tensor_batch[i, 1, :] = key_word_tensor_max_pooling
+            return feature_tensor_batch
+
+        feature_tensor_sent1 = get_feature_tensor(tensor_sent1, key_word_idxs_1)
+        feature_tensor_sent2 = get_feature_tensor(tensor_sent2, key_word_idxs_2)
+        feature_tensor = torch.cat((
+            torch.cosine_similarity(feature_tensor_sent1[:, 0, :], feature_tensor_sent2[:, 0, :], dim=1).unsqueeze(1),
+            torch.cosine_similarity(feature_tensor_sent1[:, 1, :], feature_tensor_sent2[:, 1, :], dim=1).unsqueeze(1),
+            torch.cosine_similarity(feature_tensor_sent1[:, 0, :], feature_tensor_sent2[:, 1, :], dim=1).unsqueeze(1),
+            torch.cosine_similarity(feature_tensor_sent1[:, 1, :], feature_tensor_sent2[:, 0, :], dim=1).unsqueeze(1)
+        ), dim=1)
+
+        return torch.cat((cos_sim_batch, feature_tensor), dim=1)
+
+    def polysemy_predict(self, x):
+        tensor = self.polysemy(x)
+        # result = F.softmax(self.polysemy_dense(tensor), dim=-1)
+        return tensor
 
     def generate(self, src_enc, src_len, tgt_lang_id, max_len=200, sample_temperature=None):
         """

@@ -270,11 +270,13 @@ def keyword_tag_check(df: pd.DataFrame):
 
 
 if __name__ == '__main__':
-    codes_path = os.path.join(model_xml_path, 'codes_xnli_17.txt')
-    vocab_path = os.path.join(model_xml_path, 'vocab_xnli_17.txt')
+    # codes_path = os.path.join(model_xml_path, 'codes_xnli_17.txt')
+    # vocab_path = os.path.join(model_xml_path, 'vocab_xnli_17.txt')
+    codes_path = os.path.join(model_xml_path, 'codes_xnli_15.txt')
+    vocab_path = os.path.join(model_xml_path, 'vocab_xnli_15.txt')
     fastbpe_path = os.path.join(src_xml_path, 'tools', 'fastBPE', 'fast')
     corpus_csv_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.csv')
-    corpus_txt_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
+    # corpus_txt_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
 
     # 读取语料数据
     # data_sets = ['trial']
@@ -301,8 +303,8 @@ if __name__ == '__main__':
 
     # 存储数据到文件
     corpus_df.to_csv(corpus_csv_path, sep='\001', index=None, encoding='utf-8')
-    with open(corpus_txt_path, 'w', encoding='utf-8') as f:
-        for sent1, sent2 in zip(corpus_df['sent1_bpe'].to_list(), corpus_df['sent2_bpe'].to_list()):
-            f.write(sent1 + '\n' + sent2 + '\n')
+    # with open(corpus_txt_path, 'w', encoding='utf-8') as f:
+    #     for sent1, sent2 in zip(corpus_df['sent1_bpe'].to_list(), corpus_df['sent2_bpe'].to_list()):
+    #         f.write(sent1 + '\n' + sent2 + '\n')
 
     print('END')

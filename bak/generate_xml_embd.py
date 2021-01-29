@@ -8,12 +8,12 @@ import numpy as np
 import time
 import math
 
-from src.utils import AttrDict
-from src.data.dictionary import Dictionary, BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
-from src.model.transformer import TransformerModel
+from src_xml.utils import AttrDict
+from src_xml.data.dictionary import Dictionary, BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
+from src_xml.model.transformer import TransformerModel
 
 from init_config import *
-from framework_tools import print_fun_time, check_gpu
+from util_tools import print_fun_time, check_gpu
 
 if root_path.startswith("/media"):
     batch_size = 8
