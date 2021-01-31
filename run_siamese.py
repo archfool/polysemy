@@ -26,6 +26,10 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import os
+import pickle
+import pandas as pd
+from polysemy_tf import gen_data_from_input
+from init_config import *
 
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
@@ -184,9 +188,9 @@ def get_embedding(bert_config, is_training,
             pooled += [tf.reduce_sum(sequence * input_mask_, axis=1) / tf.reduce_sum(input_mask_, axis=1)]
         pooled = tf.concat(pooled, axis=-1)
     elif FLAGS.sentence_embedding_type == "whole_sent":
-        sequence_1 = model.get_sequence_output()    # [batch_size, seq_length, hidden_size]
+        sequence_1 = model.get_sequence_output()  # [batch_size, seq_length, hidden_size]
         # sequence_1 = model.all_encoder_layers[-1]
-        sequence_2 = model.all_encoder_layers[-2]   # [batch_size, seq_length, hidden_size]
+        sequence_2 = model.all_encoder_layers[-2]  # [batch_size, seq_length, hidden_size]
         seq_length = sequence_1.shape.as_list()[-2]
         hidden_size = sequence_1.shape.as_list()[-1]
         pooled = tf.concat([sequence_1, sequence_2], axis=0)
@@ -216,7 +220,7 @@ def get_embedding(bert_config, is_training,
             tf.reshape(embedding, [bsz, FLAGS.low_dim, org_dim // FLAGS.low_dim]), axis=-1)
 
     if FLAGS.sentence_embedding_type == "whole_sent":
-        embedding = tf.reshape(embedding, [-1, seq_length*2, hidden_size])
+        embedding = tf.reshape(embedding, [-1, seq_length * 2, hidden_size])
 
     return embedding, flow_loss_batch, flow_loss_example
 
@@ -363,22 +367,22 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
         from tensorflow.python import pywrap_tensorflow
         path_1 = '/media/archfool/data/data/bert/uncased_L-24_H-1024_A-16/bert_model.ckpt'
         var_to_shape_map_1 = pywrap_tensorflow.NewCheckpointReader(path_1).get_variable_to_shape_map()
-        var_to_shape_map_1 = sorted(var_to_shape_map_1.items(),key=lambda item:item[0])
+        var_to_shape_map_1 = sorted(var_to_shape_map_1.items(), key=lambda item: item[0])
         path_2 = '/media/archfool/data/data/BERT-flow/exp/exp_large_1234/model.ckpt-60108'
         var_to_shape_map_2 = pywrap_tensorflow.NewCheckpointReader(path_2).get_variable_to_shape_map()
-        var_to_shape_map_2 = sorted(var_to_shape_map_2.items(),key=lambda item:item[0])
+        var_to_shape_map_2 = sorted(var_to_shape_map_2.items(), key=lambda item: item[0])
         path_3 = '/media/archfool/data/data/BERT-flow/exp/exp_t_STS-B_ep_1.00_lr_5.00e-05_e_avg-last-2_f_11_1.00e-03_allsplits/model.ckpt-269'
         var_to_shape_map_3 = pywrap_tensorflow.NewCheckpointReader(path_3).get_variable_to_shape_map()
-        var_to_shape_map_3 = sorted(var_to_shape_map_3.items(),key=lambda item:item[0])
+        var_to_shape_map_3 = sorted(var_to_shape_map_3.items(), key=lambda item: item[0])
         # tf.train.NewCheckpointReader(path_1).get_variable_to_shape_map()
         a = [a.name for a in tf.trainable_variables()]
         b = [b.name for b in tf.global_variables()]
-        for a_name in a:
-            if a_name not in b:
-                print("tf.trainable_variables(): {}".format(a_name))
-        for b_name in b:
-            if b_name not in a:
-                print("tf.global_variables(): {}".format(b_name))
+        # for a_name in a:
+        #     if a_name not in b:
+        #         print("tf.trainable_variables(): {}".format(a_name))
+        # for b_name in b:
+        #     if b_name not in a:
+        #         print("tf.global_variables(): {}".format(b_name))
 
         output_spec = tf.estimator.EstimatorSpec(
             mode=mode,
@@ -488,8 +492,7 @@ def main(_):
     logger.propagate = False
 
     # get tokenizer
-    tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
-                                                  FLAGS.init_checkpoint)
+    tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case, FLAGS.init_checkpoint)
     tokenizer = tokenization.FullTokenizer(vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
     # get bert config
@@ -647,7 +650,6 @@ def main(_):
     # todo
     label_list = [0, 1]
 
-
     # this block is moved here for calculating the epoch_step for save_checkpoints_steps
     train_examples = None
     num_train_steps = None
@@ -764,27 +766,46 @@ def main(_):
             'eval_batch_size': FLAGS.eval_batch_size,
             'predict_batch_size': FLAGS.predict_batch_size})
 
+    def load_corpus():
+        corpus_df = pd.read_csv(os.path.join(data_path, 'SemEval2021_Task2_corpus.csv'), sep='\001', encoding='utf-8')
+        corpus = []
+        for sent_a, sent_b in zip(corpus_df['sent1'].to_list(), corpus_df['sent1'].to_list()):
+            corpus.append((sent_a, sent_b))
+        return corpus
+
     if FLAGS.do_predict:
         checkpoint_path = None
         if FLAGS.eval_checkpoint_name:
             checkpoint_path = os.path.join(output_dir, FLAGS.eval_checkpoint_name)
         examples = [
             ("i love machine learning", "i love machine learning"),
-            ("i love machine learning", "i love machine"),
-            ("i love machine learning", "machine learning love me"),
             ("我爱机器学习", "机器学习爱我")
         ]
-        result = estimator.predict(
-            input_fn=gen_data_from_input(examples=examples, tokenizer=tokenizer, max_seq_length=128),
+        examples = load_corpus()
+        # examples = examples[:100]
+        # if os.path.exists(corpus_embd_file_path):
+        #     os.remove(corpus_embd_file_path)
+        #     f_token = open(corpus_token_file_path, "w+")
+        # else:
+        #     f_token = open(corpus_token_file_path, "w+")
+        results = estimator.predict(
+            input_fn=gen_data_from_input(examples=examples, tokenizer=tokenizer, max_seq_length=FLAGS.max_seq_length),
             checkpoint_path=checkpoint_path)
         # result = estimator.predict(input_fn=predict_input_fn, checkpoint_path=checkpoint_path)
-        result_list = [x for x in result]
+        if os.path.exists(corpus_embd_file_path):
+            os.remove(corpus_embd_file_path)
+        with open(corpus_embd_file_path, "wb+") as f:
+            for result in results:
+                tmp = np.concatenate((result['embedding_a'], result['embedding_b']), axis=0).astype('float16')
+                pickle.dump(tmp, f)
+        # f_token.close()
+        # result_list = [x for x in result]
         # np.save(os.path.join(data_path,"test.npy"), result_list[0]['embedding_a'])
-        a = result_list[1]['embedding_a'][0]
-        b = result_list[1]['embedding_b'][0]
-        sum(a * b) / pow(sum(a * a) * sum(b * b), 0.5)
-
-
+        # a = result_list[1]['embedding_a']
+        # b = result_list[1]['embedding_b']
+        # sum(a * b) / pow(sum(a * a) * sum(b * b), 0.5)
+        f_tmp = open(os.path.join(data_path, corpus_embd_file_path), 'rb')
+        # xxx = pickle.load(f_tmp)
 
     # def get_train_input_fn():
     #     cached_dir = FLAGS.cached_dir
@@ -982,13 +1003,10 @@ def main(_):
     tf.logging.info(output_dir)
 
 
-# todo
-from polysemy_tf import gen_data_from_input
-from init_config import *
-if False:
-    result = self.estimator.predict(input_fn=self.data_reader.gen_data_from_input(text=text))
-
 if __name__ == "__main__":
+    if False:
+        result = self.estimator.predict(input_fn=self.data_reader.gen_data_from_input(text=text))
+
     if True:
         FLAGS.data_dir = ""
         FLAGS.task_name = "sts-b"
@@ -1005,6 +1023,7 @@ if __name__ == "__main__":
         # FLAGS.eval_checkpoint_name = "model.ckpt-269"
         FLAGS.flow = True
         FLAGS.sentence_embedding_type = "whole_sent"
+        FLAGS.max_seq_length = 512
 
     flags.mark_flag_as_required("data_dir")
     flags.mark_flag_as_required("task_name")

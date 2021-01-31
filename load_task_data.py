@@ -3,15 +3,18 @@ import json
 import pandas as pd
 import jieba
 import copy
+import tokenization
 import fastBPE
 
 from init_config import *
 
 jieba.lcut("机器学习")
 
+tokenizer = tokenization.FullTokenizer(vocab_file=os.path.join(model_bert_path, 'vocab.txt'), do_lower_case=True)
+tokenizer_lowercase = tokenization.BasicTokenizer()
 
 # 解析单条语料
-def single_corpus_process(corpus, corpus_label):
+def single_corpus_process(corpus, corpus_label, include_lang):
     # 判断是否有标注文件（test数据集无标注文件）
     if corpus_label is None:
         label = None
@@ -22,13 +25,13 @@ def single_corpus_process(corpus, corpus_label):
         label = 1 if corpus_label['tag'] == 'T' else 0
     # 读取id
     id = corpus['id']
-    if id == 'training.en-en.6025':
-        print("")
     # 读取数据集类型：dev/training/trial/test
     # 读取任务赛道：en-en/en-zh等
     data_set, task_type, _ = id.split('.')
     # 读取语言类型：en/zh/ru/fr/ar
     sent1_lang, sent2_lang = task_type.split('-')
+    if not ((sent1_lang in include_lang) and (sent2_lang in include_lang)):
+        return None
     # 判定语料类型：multilingual/crosslingual
     corpus_type = 'multilingual' if sent1_lang == sent2_lang else 'crosslingual'
     # 读取前一句语料，处理语料（中文语料要分词处理），给预测词打上序列标签
@@ -49,6 +52,21 @@ def single_corpus_process(corpus, corpus_label):
         sent2, sent2_keyword_tags = sent_keyword_tag(corpus['sentence2'], sent2_lang, ranges=None,
                                                      start=corpus['start2'],
                                                      end=corpus['end2'])
+    sent1_token = ' '.join(tokenizer.tokenize(sent1))
+    sent2_token = ' '.join(tokenizer.tokenize(sent2))
+    for l in [len(tokenizer.tokenize(sent1)), len(tokenizer.tokenize(sent2))]:
+        if (l>384):
+            print(l)
+    # print(id)
+    if id == 'test.fr-fr.340':
+        print("")
+    sent1_token_keyword_tags = generate_token_tag(sent=sent1, sent_new=sent1_token, keyword_tags=sent1_keyword_tags)
+    sent2_token_keyword_tags = generate_token_tag(sent=sent2, sent_new=sent2_token, keyword_tags=sent2_keyword_tags)
+    # add 1 is the space of [cls]
+    sent1_token_keyword_idx = ' '.join([str(idx+1) for idx, tag in enumerate(['1' if '1' in list(s) else '0' for s in sent1_token_keyword_tags.split()]) if tag == '1'])
+    sent2_token_keyword_idx = ' '.join([str(idx+1) for idx, tag in enumerate(['1' if '1' in list(s) else '0' for s in sent2_token_keyword_tags.split()]) if tag == '1'])
+
+
     # 读取待预测词
     lemma = corpus['lemma']
     # 读取待预测词的词性
@@ -63,9 +81,15 @@ def single_corpus_process(corpus, corpus_label):
         'lemma': lemma,
         'pos': pos,
         'sent1': sent1,
+        'sent1_token': sent1_token,
         'sent1_keyword_tags': sent1_keyword_tags,
+        'sent1_token_keyword_tags': sent1_token_keyword_tags,
+        'sent1_token_keyword_idx': sent1_token_keyword_idx,
         'sent2': sent2,
+        'sent2_token': sent2_token,
         'sent2_keyword_tags': sent2_keyword_tags,
+        'sent2_token_keyword_tags': sent2_token_keyword_tags,
+        'sent2_token_keyword_idx': sent2_token_keyword_idx,
         'label': label,
     }
     return corpus_dict
@@ -143,6 +167,40 @@ def cut_and_tag(token_list, tag):
     return word_tag_list
 
 
+def generate_token_tag(sent, sent_new, keyword_tags):
+    sent = tokenizer_lowercase._run_strip_accents(sent.lower()).split()
+    sent_new = sent_new.split()
+    sent_new_bak = copy.deepcopy(sent_new)
+    keyword_tags = keyword_tags.split()
+    new_keyword_tags = []
+    for token, keyword_tag in zip(sent, keyword_tags):
+        # concat tokens of sent_new to token of sent
+        token_new = ""
+        while True:
+            # get a token of sent_new
+            token_new_tmp = sent_new.pop(0)
+            if token_new_tmp=='[UNK]':
+                keyword_tag_tmp = "0000"
+                keyword_tag = keyword_tag[1:]
+                token_new += token[len(token_new)]
+            elif token_new_tmp.startswith('##'):
+                keyword_tag_tmp = "00" + keyword_tag[:len(token_new_tmp) - 2]
+                keyword_tag = keyword_tag[len(token_new_tmp) - 2:]
+                token_new += token_new_tmp[2:]
+            elif token_new_tmp.endswith('##'):
+                keyword_tag_tmp = keyword_tag[:len(token_new_tmp) - 2] + "00"
+                keyword_tag = keyword_tag[len(token_new_tmp) - 2:]
+                token_new += token_new_tmp[:-2]
+            else:
+                keyword_tag_tmp = keyword_tag[:len(token_new_tmp)]
+                keyword_tag = keyword_tag[len(token_new_tmp):]
+                token_new += token_new_tmp
+            new_keyword_tags.append(keyword_tag_tmp)
+            if token == token_new:
+                break
+    return ' '.join(new_keyword_tags)
+
+
 # 根据原语料、BPE语料、原语料tag，生成BPE语料tag
 def generate_bpe_tag(row, columns_name):
     sent = row[columns_name[0]].split()
@@ -188,7 +246,7 @@ def generate_bpe_tag(row, columns_name):
 
 
 # 语料读取和处理
-def corpus_process(corpus_path, data_sets=None):
+def corpus_process(corpus_path, data_sets=None, include_lang=None):
     if data_sets is None:
         data_sets = ['training', 'dev', 'trial', 'test']
     corpus_types = ['crosslingual', 'multilingual']
@@ -204,6 +262,11 @@ def corpus_process(corpus_path, data_sets=None):
                 for file_name in os.listdir(data_path):
                     # 以data文件为锚点，同时读取data文件和gold文件
                     if file_name.endswith('data'):
+                        # judge wheather to load and process this dataset
+                        _, task_type, _ = file_name.split(".")
+                        sent1_lang, sent2_lang = task_type.split('-')
+                        if not ((sent1_lang in include_lang) and (sent2_lang in include_lang)):
+                            continue
                         # 读取data文件
                         with open(os.path.join(data_path, file_name), 'r', encoding='utf-8') as f:
                             corpuses = json.loads(f.read())
@@ -216,38 +279,60 @@ def corpus_process(corpus_path, data_sets=None):
                                 labels = json.loads(f.read())
                         # 循环遍历处理单个语料文件下的所有语料
                         for corpus, label in zip(corpuses, labels):
-                            corpus_dict = single_corpus_process(corpus, label)
-                            # 异常判断：data和gold不匹配
-                            if not isinstance(corpus_dict, dict):
-                                print(corpus_dict)
-                            corpus_list.append(corpus_dict)
+                            corpus_dict = single_corpus_process(corpus, label, include_lang)
+                            # # 异常判断：data和gold不匹配
+                            # if not isinstance(corpus_dict, dict):
+                            #     print(corpus_dict)
+                            if corpus_dict is not None:
+                                corpus_list.append(corpus_dict)
     corpus_df = pd.DataFrame(corpus_list)
     return corpus_df
 
 
-def keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple, t_idx):
+def keyword_tag_check_single(idx, s, t, s_token, t_token, t_token_idx):
     k = ''
     for word, tag in zip(list(s), list(t)):
         if tag == '1':
             k += word
     k_bpe = ''
-    for word, tag in zip(list(s_bpe), list(t_bpe)):
+    for word, tag in zip(list(s_token), list(t_token)):
         if tag == '1':
             k_bpe += word
-    s_bpe_list = s_bpe.split(' ')
-    # print("{}\n{}\n{}\n".format(k, k_bpe, ''.join([s_bpe_list[int(idx)] for idx in t_idx.split(' ')])))
+    s_bpe_list = s_token.split(' ')
+    # print("{}\n{}\n{}\n".format(k, k_bpe, ''.join([s_bpe_list[int(idx)-1] for idx in t_token_idx.split(' ')])))
     # 检查BPE前后，提取的文本是否一致
-    if k != k_bpe:
+    if tokenizer_lowercase._run_strip_accents(k.lower()) != k_bpe:
         print("ERROR:{}\n{}\n{}".format(idx, k, k_bpe))
-    # 检查BPE的seg和tag的长度是否一致
-    if len(s_bpe.split(' ')) != len(t_bpe_simple):
-        print("ERROR(len_unequal):[{}]{}".format(idx, len(t_bpe_simple)))
-    # 检查是否会受到strip()影响
-    if len(s_bpe.strip().split(' ')) != len(t_bpe_simple):
-        print("ERROR(strip):[{}]{}".format(idx, len(t_bpe_simple)))
+    # # 检查BPE的seg和tag的长度是否一致
+    # if len(s_token.split(' ')) != len(t_bpe_simple):
+    #     print("ERROR(len_unequal):[{}]{}".format(idx, len(t_bpe_simple)))
+    # # 检查是否会受到strip()影响
+    # if len(s_bpe.strip().split(' ')) != len(t_bpe_simple):
+    #     print("ERROR(strip):[{}]{}".format(idx, len(t_bpe_simple)))
 
 
-def keyword_tag_check(df: pd.DataFrame):
+def keyword_tag_check_token(df: pd.DataFrame):
+    idx = -1
+    for idx, row in df.iterrows():
+        if idx % 1000 == 0:
+            print(idx)
+        s = row['sent1']
+        t = row['sent1_keyword_tags']
+        s_bpe = row['sent1_token']
+        t_bpe = row['sent1_token_keyword_tags']
+        # t_bpe_simple = row['sent1_bpe_keyword_tags_simple']
+        t_idx = row['sent1_token_keyword_idx']
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_idx)
+        s = row['sent2']
+        t = row['sent2_keyword_tags']
+        s_bpe = row['sent2_token']
+        t_bpe = row['sent2_token_keyword_tags']
+        # t_bpe_simple = row['sent2_bpe_keyword_tags_simple']
+        t_idx = row['sent2_token_keyword_idx']
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_idx)
+    print(idx)
+
+def keyword_tag_check_bpe(df: pd.DataFrame):
     idx = -1
     for idx, row in df.iterrows():
         if idx % 1000 == 0:
@@ -256,16 +341,16 @@ def keyword_tag_check(df: pd.DataFrame):
         t = row['sent1_keyword_tags']
         s_bpe = row['sent1_bpe']
         t_bpe = row['sent1_bpe_keyword_tags']
-        t_bpe_simple = row['sent1_bpe_keyword_tags_simple']
+        # t_bpe_simple = row['sent1_bpe_keyword_tags_simple']
         t_idx = row['sent1_bpe_keyword_idx']
-        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple, t_idx)
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_idx)
         s = row['sent2']
         t = row['sent2_keyword_tags']
         s_bpe = row['sent2_bpe']
         t_bpe = row['sent2_bpe_keyword_tags']
-        t_bpe_simple = row['sent2_bpe_keyword_tags_simple']
+        # t_bpe_simple = row['sent2_bpe_keyword_tags_simple']
         t_idx = row['sent2_bpe_keyword_idx']
-        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_bpe_simple, t_idx)
+        keyword_tag_check_single(idx, s, t, s_bpe, t_bpe, t_idx)
     print(idx)
 
 
@@ -278,31 +363,35 @@ if __name__ == '__main__':
     corpus_csv_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.csv')
     # corpus_txt_path = os.path.join(data_path, 'SemEval2021_Task2_corpus.txt')
 
+    # df = pd.read_csv(corpus_csv_path, sep='\001', encoding='utf-8')
+
     # 读取语料数据
     # data_sets = ['trial']
     data_sets = ['training', 'dev', 'trial', 'test']
-    corpus_df = corpus_process(task_corpus_path, data_sets=data_sets)
+    include_lang = ['en', 'ru']
+    corpus_df = corpus_process(task_corpus_path, data_sets=data_sets, include_lang=include_lang)
+    keyword_tag_check_token(corpus_df)
 
     # 进行BPE分词转换
-    bpe = fastBPE.fastBPE(codes_path, vocab_path)
-    corpus_df['sent1_bpe'] = corpus_df['sent1'].apply(lambda sent: bpe.apply([sent])[0])
-    corpus_df['sent2_bpe'] = corpus_df['sent2'].apply(lambda sent: bpe.apply([sent])[0])
-    corpus_df['sent1_bpe_keyword_tags'] = corpus_df.apply(
-        lambda row: generate_bpe_tag(row, ['sent1', 'sent1_bpe', 'sent1_keyword_tags']), axis=1)
-    corpus_df['sent2_bpe_keyword_tags'] = corpus_df.apply(
-        lambda row: generate_bpe_tag(row, ['sent2', 'sent2_bpe', 'sent2_keyword_tags']), axis=1)
-    corpus_df['sent1_bpe_keyword_tags_simple'] = corpus_df['sent1_bpe_keyword_tags'].apply(
-        lambda ss: ''.join(['1' if '1' in list(s) else '0' for s in ss.split()]))
-    corpus_df['sent2_bpe_keyword_tags_simple'] = corpus_df['sent2_bpe_keyword_tags'].apply(
-        lambda ss: ''.join(['1' if '1' in list(s) else '0' for s in ss.split()]))
-    corpus_df['sent1_bpe_keyword_idx'] = corpus_df['sent1_bpe_keyword_tags'].apply(
-        lambda ss: ' '.join([str(idx) for idx, tag in enumerate(['1' if '1' in list(s) else '0' for s in ss.split()]) if tag=='1']))
-    corpus_df['sent2_bpe_keyword_idx'] = corpus_df['sent2_bpe_keyword_tags'].apply(
-        lambda ss: ' '.join([str(idx) for idx, tag in enumerate(['1' if '1' in list(s) else '0' for s in ss.split()]) if tag=='1']))
-    # keyword_tag_check(corpus_df)
+    # bpe = fastBPE.fastBPE(codes_path, vocab_path)
+    # corpus_df['sent1_bpe'] = corpus_df['sent1'].apply(lambda sent: bpe.apply([sent])[0])
+    # corpus_df['sent2_bpe'] = corpus_df['sent2'].apply(lambda sent: bpe.apply([sent])[0])
+    # corpus_df['sent1_bpe_keyword_tags'] = corpus_df.apply(
+    #     lambda row: generate_bpe_tag(row, ['sent1', 'sent1_bpe', 'sent1_keyword_tags']), axis=1)
+    # corpus_df['sent2_bpe_keyword_tags'] = corpus_df.apply(
+    #     lambda row: generate_bpe_tag(row, ['sent2', 'sent2_bpe', 'sent2_keyword_tags']), axis=1)
+    # corpus_df['sent1_bpe_keyword_tags_simple'] = corpus_df['sent1_bpe_keyword_tags'].apply(
+    #     lambda ss: ''.join(['1' if '1' in list(s) else '0' for s in ss.split()]))
+    # corpus_df['sent2_bpe_keyword_tags_simple'] = corpus_df['sent2_bpe_keyword_tags'].apply(
+    #     lambda ss: ''.join(['1' if '1' in list(s) else '0' for s in ss.split()]))
+    # corpus_df['sent1_bpe_keyword_idx'] = corpus_df['sent1_bpe_keyword_tags'].apply(
+    #     lambda ss: ' '.join([str(idx) for idx, tag in enumerate(['1' if '1' in list(s) else '0' for s in ss.split()]) if tag=='1']))
+    # corpus_df['sent2_bpe_keyword_idx'] = corpus_df['sent2_bpe_keyword_tags'].apply(
+    #     lambda ss: ' '.join([str(idx) for idx, tag in enumerate(['1' if '1' in list(s) else '0' for s in ss.split()]) if tag=='1']))
+    # keyword_tag_check_bpe(corpus_df)
 
     # 存储数据到文件
-    corpus_df.to_csv(corpus_csv_path, sep='\001', index=None, encoding='utf-8')
+    corpus_df.to_csv(corpus_csv_path, sep='\001', index=False, encoding='utf-8')
     # with open(corpus_txt_path, 'w', encoding='utf-8') as f:
     #     for sent1, sent2 in zip(corpus_df['sent1_bpe'].to_list(), corpus_df['sent2_bpe'].to_list()):
     #         f.write(sent1 + '\n' + sent2 + '\n')

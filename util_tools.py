@@ -1,6 +1,8 @@
 import time
 import logging
 import datetime
+import os
+from init_config import *
 
 def print_fun_time(func):
     def run(*args, **kwargs):

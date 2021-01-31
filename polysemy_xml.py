@@ -182,7 +182,7 @@ if __name__ == '__main__':
     polysemt_xml_model = framework.framework(params=params, model=model, data_stream=data_stream, optimizer=optimizer,
                                              loss_func=loss_func, USE_CUDA=USE_CUDA)
     polysemt_xml_model.run_eval()
-    # polysemt_xml_model.run_train(epochs=30)
+    polysemt_xml_model.run_train(epochs=30)
 
     torch.cuda.empty_cache()
     logger.info('END')

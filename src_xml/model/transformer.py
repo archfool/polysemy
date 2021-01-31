@@ -518,7 +518,7 @@ class TransformerModel(nn.Module):
 
     def polysemy_predict(self, x):
         tensor = self.polysemy(x)
-        # result = F.softmax(self.polysemy_dense(tensor), dim=-1)
+        result = F.softmax(self.polysemy_dense(tensor), dim=-1)
         return tensor
 
     def generate(self, src_enc, src_len, tgt_lang_id, max_len=200, sample_temperature=None):

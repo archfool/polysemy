@@ -26,7 +26,7 @@ def gen_data_from_input(examples, tokenizer, max_seq_length):
         for example in examples:
             feature = convert_single_example_polysemy(example=example, max_seq_length=max_seq_length,
                                                       tokenizer=tokenizer, random_mask=0)
-            print(feature.tokens_a, feature.tokens_b)
+            # print(feature.tokens_a, feature.tokens_b)
             yield {name: [feature.__getattribute__(name)] for name in feature_info.keys()}
             # yield {
             #     'text': [feature],
