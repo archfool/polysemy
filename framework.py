@@ -103,10 +103,10 @@ class framework():
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
             return loss
 
-        # optimizer.zero_grad() clears x.grad for every parameter x in the optimizer.
-        self.optimizer.zero_grad()
         # optimizer.step updates the value of x using the gradient x.grad. For example of SGD : x += -lr * x.grad
         self.optimizer.step(closure)
+        # optimizer.zero_grad() clears x.grad for every parameter x in the optimizer.
+        self.optimizer.zero_grad()
         # loss.backward()和self.optimizer.step(closure)在原有模型空间的基础上，各增加50%的显存
 
     def run_eval(self):
